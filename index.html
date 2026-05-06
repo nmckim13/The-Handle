@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YardKartz — 2026 Stock Predator Championship</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --orange: #F26419; --yellow: #F7C948;
+    --asphalt: #0f0f0f; --asphalt-mid: #1a1a1a; --asphalt-light: #242424;
+    --bg: #111111; --bg2: #1a1a1a; --bg3: #222222;
+    --text: #f0f0f0; --text2: #777777;
+    --bdr: #2e2e2e; --bdr2: #444444;
+  }
+  body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .site-header { background: var(--asphalt); border-bottom: 3px solid var(--orange); padding: 0 20px; position: relative; overflow: hidden; }
+  .header-kart { position: absolute; right: -10px; bottom: -8px; height: 110px; opacity: 0.15; pointer-events: none; mix-blend-mode: lighten; }
+  .header-inner { max-width: 900px; margin: 0 auto; display: flex; align-items: center; gap: 14px; padding: 12px 0 10px; position: relative; z-index: 1; }
+  .header-logo { height: 60px; object-fit: contain; mix-blend-mode: lighten; }
+  .header-league { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--orange); margin-bottom: 2px; }
+  .header-sub { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: var(--text2); }
+  .season-tag { margin-left: auto; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--yellow); background: rgba(247,201,72,0.08); padding: 5px 12px; border-radius: 5px; border: 1px solid rgba(247,201,72,0.15); }
+
+  .site-nav { background: var(--asphalt-mid); border-bottom: 1px solid var(--bdr); padding: 0 20px; }
+  .nav-inner { max-width: 900px; margin: 0 auto; display: flex; overflow-x: auto; }
+  .nav-inner::-webkit-scrollbar { display: none; }
+  .nav-inner button { background: none; border: none; border-bottom: 3px solid transparent; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); padding: 12px 15px; cursor: pointer; transition: all 0.12s; white-space: nowrap; flex-shrink: 0; }
+  .nav-inner button:hover { color: var(--text); }
+  .nav-inner button.active { color: var(--orange); border-bottom-color: var(--orange); }
+
+  .site-main { padding: 0 20px; }
+  .main-inner { max-width: 900px; margin: 0 auto; }
+  .page { display: none; padding: 22px 0 48px; }
+  .page.active { display: block; }
+
+  /* HERO */
+  .hero { background: var(--asphalt-mid); border-radius: 12px; border: 1px solid var(--bdr); margin-bottom: 14px; overflow: hidden; position: relative; }
+  .hero-top { padding: 26px 26px 0; position: relative; z-index: 1; }
+  .hero-kart-bg { position: absolute; right: 0; top: 0; bottom: 0; width: 50%; object-fit: cover; object-position: left; opacity: 0.1; mix-blend-mode: lighten; pointer-events: none; }
+  .hero-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--orange); margin-bottom: 10px; }
+  .hero-logo { height: 76px; object-fit: contain; mix-blend-mode: lighten; display: block; margin-bottom: 10px; }
+  .hero-desc { font-size: 14px; color: var(--text2); margin-bottom: 22px; line-height: 1.5; max-width: 400px; }
+  .stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--bdr); border-top: 1px solid var(--bdr); }
+  .stat-box { padding: 14px 16px; background: var(--asphalt-mid); }
+  .stat-n { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; font-weight: 900; color: var(--orange); line-height: 1; }
+  .stat-l { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); margin-top: 2px; }
+
+  .next-race { border: 2px solid var(--orange); border-radius: 10px; padding: 14px 18px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; background: var(--asphalt-mid); }
+  .next-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--orange); margin-bottom: 4px; }
+  .next-name { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; text-transform: uppercase; color: var(--text); }
+  .next-date { font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 900; color: var(--orange); text-align: right; line-height: 1; }
+  .next-date span { display: block; font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: 1px; text-transform: uppercase; }
+
+  .sect-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--text2); margin-bottom: 10px; }
+
+  /* TABLES */
+  .tbl-wrap { border: 1px solid var(--bdr); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tbl th { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); padding: 9px 14px; border-bottom: 1px solid var(--bdr); background: var(--asphalt-light); text-align: left; }
+  .tbl td { padding: 10px 14px; border-bottom: 1px solid var(--bdr); vertical-align: middle; color: var(--text); background: var(--asphalt-mid); }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:hover td { background: var(--asphalt-light); }
+
+  .pos { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; color: var(--text2); }
+  .pos.p1 { color: var(--orange); }
+  .pos.p2 { color: #999; }
+  .pos.p3 { color: #B8860B; }
+  .laptime { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; color: var(--orange); }
+  .rec-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: var(--yellow); color: #412402; padding: 2px 7px; border-radius: 4px; margin-left: 8px; }
+  .pts-row { display: flex; align-items: center; gap: 10px; }
+  .pts-bar { height: 5px; border-radius: 3px; background: var(--orange); }
+  .pts-bar.dim { background: var(--bdr2); }
+  .pts-n { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; min-width: 36px; text-align: right; color: var(--text); }
+
+  /* LEADER */
+  .leader-card { background: var(--asphalt-mid); border: 1px solid var(--bdr); border-top: 3px solid var(--orange); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 18px; }
+  .leader-num { font-family: 'Barlow Condensed', sans-serif; font-size: 64px; font-weight: 900; color: var(--orange); line-height: 1; }
+  .leader-name { font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 900; text-transform: uppercase; color: var(--text); }
+  .leader-sub { font-size: 13px; color: var(--text2); margin-top: 3px; }
+  .leader-badge { display: inline-block; margin-top: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; background: var(--yellow); color: #412402; padding: 3px 9px; border-radius: 4px; }
+
+  /* DRIVERS */
+  .driver-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 8px; margin-bottom: 16px; }
+  .driver-card { border: 1px solid var(--bdr); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; background: var(--asphalt-mid); transition: border-color 0.12s; }
+  .driver-card:hover { border-color: var(--orange); }
+  .d-num { font-family: 'Barlow Condensed', sans-serif; font-size: 32px; font-weight: 900; line-height: 1; min-width: 48px; text-align: center; }
+  .d-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; text-transform: uppercase; color: var(--text); }
+  .d-meta { font-size: 12px; color: var(--text2); margin-top: 3px; }
+  .d-badge { display: inline-block; margin-top: 5px; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border: 1px solid var(--bdr2); color: var(--text2); padding: 2px 7px; border-radius: 4px; }
+  .d-badge.hot { background: var(--orange); border-color: var(--orange); color: #fff; }
+
+  /* SCHEDULE */
+  .tab-row { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab-btn { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: var(--asphalt-mid); border: 1px solid var(--bdr); border-radius: 6px; color: var(--text2); padding: 6px 16px; cursor: pointer; transition: all 0.12s; }
+  .tab-btn.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .race-list { display: flex; flex-direction: column; gap: 6px; }
+  .race-row { border: 1px solid var(--bdr); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; background: var(--asphalt-mid); }
+  .race-row.past { opacity: 0.45; }
+  .race-row.upcoming { border-color: var(--orange); border-width: 2px; }
+  .r-date { text-align: center; min-width: 42px; }
+  .r-month { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); }
+  .r-day { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; line-height: 1; color: var(--text); }
+  .r-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; text-transform: uppercase; color: var(--text); }
+  .r-detail { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .r-winner { margin-left: auto; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--orange); }
+  .r-pill { margin-left: auto; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: var(--orange); color: #fff; padding: 3px 10px; border-radius: 4px; white-space: nowrap; }
+
+  /* VIDEOS */
+  .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 10px; }
+  .v-card { border: 1px solid var(--bdr); border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--asphalt-mid); transition: border-color 0.12s; }
+  .v-card:hover { border-color: var(--orange); }
+  .v-thumb { width: 100%; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; background: var(--asphalt-light); overflow: hidden; }
+  .v-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .v-play { width: 40px; height: 40px; background: var(--orange); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .v-play svg { width: 14px; height: 14px; fill: #fff; margin-left: 3px; }
+  .v-info { padding: 10px 12px 12px; border-top: 1px solid var(--bdr); }
+  .v-title { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 800; text-transform: uppercase; line-height: 1.2; color: var(--text); }
+  .v-meta { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  /* RULEBOOK */
+  .rule-section { background: var(--asphalt-mid); border: 1px solid var(--bdr); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+  .rule-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; cursor: pointer; transition: background 0.12s; }
+  .rule-header:hover { background: var(--asphalt-light); }
+  .rule-num { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--orange); margin-bottom: 2px; }
+  .rule-title { font-family: 'Barlow Condensed', sans-serif; font-size: 17px; font-weight: 800; text-transform: uppercase; color: var(--text); }
+  .rule-chevron { font-size: 18px; color: var(--text2); transition: transform 0.2s; }
+  .rule-header.open .rule-chevron { transform: rotate(180deg); }
+  .rule-body { display: none; padding: 0 18px 16px; border-top: 1px solid var(--bdr); }
+  .rule-body.open { display: block; }
+  .rule-body p { font-size: 13px; color: var(--text2); line-height: 1.7; margin-top: 12px; }
+  .rule-body p strong { color: var(--text); }
+  .rule-body ul { margin: 10px 0 0 16px; }
+  .rule-body ul li { font-size: 13px; color: var(--text2); line-height: 1.7; }
+  .rule-body ul li strong { color: var(--text); }
+  .rule-warn { background: rgba(242,100,25,0.08); border: 1px solid rgba(242,100,25,0.25); border-radius: 6px; padding: 10px 14px; margin-top: 12px; font-size: 13px; color: var(--orange); font-weight: 600; line-height: 1.5; }
+
+  /* POINTS GRID */
+  .pts-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+  .pts-cell { background: var(--asphalt-light); border: 1px solid var(--bdr); border-radius: 6px; padding: 8px 10px; text-align: center; }
+  .pts-cell-pos { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); }
+  .pts-cell-val { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; color: var(--orange); line-height: 1.1; }
+  .pts-cell:first-child .pts-cell-val { color: var(--yellow); font-size: 26px; }
+
+  /* INFO CARDS */
+  .info-card { background: var(--asphalt-mid); border: 1px solid var(--bdr); border-left: 3px solid var(--orange); border-radius: 10px; padding: 16px 20px; margin-bottom: 10px; }
+  .info-card h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: var(--orange); margin-bottom: 10px; }
+  .info-card p { font-size: 13px; color: var(--text2); line-height: 1.7; }
+
+  .empty { text-align: center; padding: 40px; color: var(--text2); font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .loading { text-align: center; padding: 40px; color: var(--text2); font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+
+  .site-footer { background: var(--asphalt); border-top: 1px solid var(--bdr); text-align: center; padding: 18px 20px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text2); margin-top: 20px; position: relative; overflow: hidden; }
+  .footer-kart { position: absolute; right: 0; top: 50%; transform: translateY(-50%); height: 56px; opacity: 0.07; mix-blend-mode: lighten; pointer-events: none; }
+  .site-footer a { color: var(--orange); text-decoration: none; }
+
+  @media(max-width:600px){
+    .header-logo{height:44px}
+    .hero-top{padding:18px 16px 0}
+    .hero-logo{height:56px}
+    .driver-grid{grid-template-columns:1fr 1fr}
+    .next-race{flex-direction:column;align-items:flex-start;gap:8px}
+    .season-tag{display:none}
+    .pts-grid{grid-template-columns:repeat(2,1fr)}
+  }
+
+  .social-links { display: flex; align-items: center; gap: 10px; }
+  .social-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 7px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+    transition: background 0.15s, border-color 0.15s; text-decoration: none;
+    flex-shrink: 0;
+  }
+  .social-btn:hover { background: rgba(255,255,255,0.14); border-color: var(--orange); }
+  .social-btn svg { width: 17px; height: 17px; fill: rgba(255,255,255,0.7); }
+  .social-btn:hover svg { fill: #fff; }
+  .footer-socials { display: flex; justify-content: center; gap: 12px; margin-bottom: 10px; }
+  .footer-social-btn {
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--text2); text-decoration: none; padding: 6px 12px;
+    border: 1px solid var(--bdr); border-radius: 6px;
+    transition: all 0.12s;
+  }
+  .footer-social-btn:hover { color: var(--orange); border-color: var(--orange); }
+  .footer-social-btn svg { width: 14px; height: 14px; fill: currentColor; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <img class="header-kart" src="kart.jpg" alt="">
+  <div class="header-inner">
+    <img class="header-logo" src="logo.jpg" alt="YardKartz">
+    <div>
+      <div class="header-league">2026 Stock Predator Championship</div>
+      <div class="header-sub">The Handle · Westville, IN</div>
+    </div>
+    <div class="season-tag">2026 Season</div>
+    <div class="social-links">
+      <a class="social-btn" href="https://www.facebook.com/groups/845976358153297" target="_blank" title="Facebook"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
+      <a class="social-btn" href="https://www.instagram.com/yardkartz/" target="_blank" title="Instagram"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>
+      <a class="social-btn" href="https://www.youtube.com/@yardkartz" target="_blank" title="YouTube"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
+    </div>
+  </div>
+</header>
+
+<nav class="site-nav">
+  <div class="nav-inner">
+    <button class="active" onclick="showPage('home',this)">Home</button>
+    <button onclick="showPage('drivers',this)">Drivers</button>
+    <button onclick="showPage('points',this)">Points</button>
+    <button onclick="showPage('schedule',this)">Schedule</button>
+    <button onclick="showPage('records',this)">Records</button>
+    <button onclick="showPage('videos',this)">Videos</button>
+    <button onclick="showPage('rules',this)">Rulebook</button>
+    <button onclick="showPage('info',this)">Info</button>
+  </div>
+</nav>
+
+<div class="site-main"><div class="main-inner">
+
+  <!-- HOME -->
+  <div class="page active" id="page-home">
+    <div class="hero">
+      <img class="hero-kart-bg" src="kart.jpg" alt="">
+      <div class="hero-top">
+        <div class="hero-label">Invitation Only · Backyard Dirt Oval</div>
+        <img class="hero-logo" src="logo.jpg" alt="YardKartz">
+        <div class="hero-desc">Fair, Fast, and Fun backyard kart racing. The Handle. Westville, IN. You know if you're invited.</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="stat-n" id="sc-drivers">—</div><div class="stat-l">Drivers</div></div>
+        <div class="stat-box"><div class="stat-n" id="sc-races">—</div><div class="stat-l">Races Run</div></div>
+        <div class="stat-box"><div class="stat-n">8</div><div class="stat-l">Rounds in '26</div></div>
+      </div>
+    </div>
+    <div id="home-next"></div>
+    <div class="sect-lbl" id="lbl-results" style="display:none">Last race</div>
+    <div id="home-results"></div>
+    <div class="sect-lbl" id="lbl-leader" style="display:none">Points leader</div>
+    <div id="home-leader"></div>
+  </div>
+
+  <!-- DRIVERS -->
+  <div class="page" id="page-drivers">
+    <div class="sect-lbl" style="margin-bottom:14px">2026 Driver Roster</div>
+    <div class="driver-grid" id="driver-grid"><div class="loading">Loading</div></div>
+  </div>
+
+  <!-- POINTS -->
+  <div class="page" id="page-points">
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="switchSeason(2026,this)">2026 Season</button>
+      <button class="tab-btn" onclick="switchSeason(2025,this)">2025 Final Standings</button>
+    </div>
+    <div class="sect-lbl" id="pts-season-label" style="margin-bottom:14px">2026 Championship Standings</div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th style="width:50px">Pos</th><th>Driver</th><th style="width:56px">Wins</th><th>Points</th></tr></thead>
+        <tbody id="pts-body"><tr><td colspan="4"><div class="loading">Loading</div></td></tr></tbody>
+      </table>
+    </div>
+    <div class="sect-lbl" style="margin-top:8px;margin-bottom:12px">A-Main Championship Points</div>
+    <div class="pts-grid">
+      <div class="pts-cell"><div class="pts-cell-pos">1st</div><div class="pts-cell-val">35</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">2nd</div><div class="pts-cell-val">32</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">3rd</div><div class="pts-cell-val">29</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">4th</div><div class="pts-cell-val">26</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">5th</div><div class="pts-cell-val">23</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">6th</div><div class="pts-cell-val">20</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">7th</div><div class="pts-cell-val">18</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">8th</div><div class="pts-cell-val">16</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">9th</div><div class="pts-cell-val">14</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">10th</div><div class="pts-cell-val">12</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">11th</div><div class="pts-cell-val">10</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">12th</div><div class="pts-cell-val">9</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">13th</div><div class="pts-cell-val">8</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">14th</div><div class="pts-cell-val">7</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">15th</div><div class="pts-cell-val">6</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">16th</div><div class="pts-cell-val">5</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">17th</div><div class="pts-cell-val">4</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">18th</div><div class="pts-cell-val">3</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">19th</div><div class="pts-cell-val">2</div></div>
+      <div class="pts-cell"><div class="pts-cell-pos">20th</div><div class="pts-cell-val">1</div></div>
+    </div>
+    <div class="info-card" style="margin-top:12px">
+      <h3>Important Notes</h3>
+      <p>· Points awarded to A-Main finishers only — must finish in entirety</p>
+      <p>· <strong style="color:var(--orange)">1 throw-away round per driver allowed</strong> for the season</p>
+      <p>· Membership fee: $75, due by May 10, 2026 or first film day</p>
+      <p>· Minimum 8 hrs/season of track/equipment maintenance required</p>
+    </div>
+  </div>
+
+  <!-- SCHEDULE -->
+  <div class="page" id="page-schedule">
+    <div class="sect-lbl" style="margin-bottom:14px">2026 Race Calendar</div>
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="filterR('all',this)">All</button>
+      <button class="tab-btn" onclick="filterR('upcoming',this)">Upcoming</button>
+      <button class="tab-btn" onclick="filterR('past',this)">Past</button>
+    </div>
+    <div class="race-list" id="race-list"><div class="loading">Loading</div></div>
+    <div class="info-card" style="margin-top:14px">
+      <h3>TNT Nights</h3>
+      <p>Every Wednesday, weather permitting. Start date TBD. 9pm cutoff. Show up, get in the kart, turn some laps.</p>
+    </div>
+  </div>
+
+  <!-- RECORDS -->
+  <div class="page" id="page-records">
+    <div class="sect-lbl" style="margin-bottom:14px">All-Time Lap Records — The Handle</div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th style="width:50px">Rank</th><th>Driver</th><th>Best Lap</th><th style="width:76px">Date</th><th style="width:56px">Race</th></tr></thead>
+        <tbody id="rec-body"><tr><td colspan="5"><div class="loading">Loading</div></td></tr></tbody>
+      </table>
+    </div>
+    <div class="info-card">
+      <h3>Limited Modified Qualifier</h3>
+      <p>An official lap time of <strong style="color:var(--orange)">14.29 sec or lower</strong> on a legal Stock Predator machine is required to compete in Limited Modified class events.</p>
+    </div>
+  </div>
+
+  <!-- VIDEOS -->
+  <div class="page" id="page-videos">
+    <div class="sect-lbl" style="margin-bottom:14px">Race Footage</div>
+    <div class="video-grid" id="vid-grid"><div class="loading">Loading</div></div>
+  </div>
+
+  <!-- RULEBOOK -->
+  <div class="page" id="page-rules">
+    <div class="sect-lbl" style="margin-bottom:14px">YardKartz! Official Rulebook — 2026</div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 1–2</div><div class="rule-title">Core Group & Eligibility</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <p><strong>Core Group</strong> consists of the race director and all invited attendees that participated in a YardKartz! event in 2024.</p>
+        <p><strong>A YardKartz! event</strong> is any event taking place at The Handle Dirt Oval.</p>
+        <p><strong>Invitation Requirements</strong> — guests must be invited by a core group member, and the race director notified prior to entering. Guests are the responsibility of the host. Race director has final say on any attendee's removal.</p>
+        <div class="rule-warn">⚠ ABSOLUTELY NO PETS ALLOWED ON PREMISES DURING A YARDKARTZ! EVENT</div>
+        <p><strong>Liability Waivers</strong> — ALL attendees MUST sign a liability waiver upon entering. Unaccompanied minors are not allowed. On film days, all attendees must sign a film release form.</p>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 3</div><div class="rule-title">Conduct & Sportsmanship</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <p><strong>Attendee Conduct</strong> — All attendees shall conduct themselves in a manner consistent with a conventional family setting. Be respectful to other attendees, drivers, officials, and the venue. Alcohol is permitted, excessive consumption is discouraged.</p>
+        <p><strong>Driver Conduct</strong> — ALL drivers must conduct themselves at the highest level of professional motorsports. Attend ALL driver's meetings promptly. Race director can prohibit any driver from entering the track due to over intoxication or misconduct at any time.</p>
+        <p><strong>Misconduct includes:</strong> fighting, unwanted physical conduct, intimidation, over intoxication, acts of disrespect, vandalism, theft, verbal altercations, safety violations, unsportsmanlike conduct, driving with intent to cause harm.</p>
+        <p><strong>Consequences:</strong> verbal warning, exclusion from driving, points penalty, membership revocation, removal from premises, ban from premises.</p>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 4</div><div class="rule-title">Racing Eligibility Requirements</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <p><strong>Age & Licensing</strong> — All drivers must be 18 years of age or older and hold a current valid state driver's license. Race director can circumvent at his discretion.</p>
+        <p><strong>Skill Requirements</strong> — Must demonstrate knowledge of all racing/pit procedures, flag and light interpretation, corner ID, track boundaries, and hand signals. Must demonstrate the skill to operate the vehicle at speed to avoid unnecessary collisions.</p>
+        <p><strong>Limited Modified Class</strong> — Additional requirements: current year membership paid in full, official lap time of 14.29 sec or lower on a legal Stock Predator machine, minimum 12 kart grid in Stock Predator class established at the event.</p>
+        <p><strong>Membership Fees</strong> — $75 non-refundable for 2026 season. Due by May 10, 2026 or first film day. Minimum 8 hrs/season of track/equipment maintenance labor required to retain membership.</p>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 5</div><div class="rule-title">Track Safety</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <p><strong>Track Crossing</strong> — Strictly prohibited except between rounds. Children must have a parent or guardian when crossing.</p>
+        <p><strong>Hot Pit Lane Entry/Exit</strong> — Enter ONLY before Turn #3, exit ONLY after Turn #4.</p>
+        <div class="rule-warn">⚠ NO DRIVER IS PERMITTED TO ENTER HOT PIT LANE COUNTER TO RACE DIRECTION UNDER ANY CIRCUMSTANCES!</div>
+        <p><strong>Pit Lane Speed</strong> — Maximum 5 mph.</p>
+        <p><strong>Pit Lane Organization</strong> — Must allow 2x the width of a kart to pass through at all times.</p>
+        <p><strong>Individual Pit Areas</strong> — Maximum 10' x 12' including canopy. Must be kept clean and orderly throughout the event.</p>
+        <p><strong>Outer Pit Drivers</strong> — Must enter infield pits immediately post race and wait for track personnel to allow crossing to outer pits.</p>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 6</div><div class="rule-title">Racing Flags & Lights</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <ul>
+          <li><strong>🟢 Green</strong> — Race underway</li>
+          <li><strong>🟡 Yellow</strong> — Caution, no passing, single file, wait for restart. Driver causing yellow goes to rear of grid</li>
+          <li><strong>🟡 Yellow w/ Red Stripes</strong> — Debris on track, continue with caution</li>
+          <li><strong>🔴 Red</strong> — Stop race, proceed to pit in 2-wide order. Driver causing red goes to rear on restart. Red before 1 lap completed = full restart from original grid</li>
+          <li><strong>⬛ Black</strong> — Driver violation, pull into pits for instruction</li>
+          <li><strong>⬛ Black w/ Orange Circle (Meatball)</strong> — Mechanical issue, proceed to pits</li>
+          <li><strong>⬜ White</strong> — Final lap</li>
+          <li><strong>🏁 Checkered</strong> — Finish of race</li>
+        </ul>
+        <div class="rule-warn">⚠ ABSOLUTELY NO PASSING UNDER GREEN BEFORE CROSSING START/FINISH LINE</div>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 7</div><div class="rule-title">Race Procedures & Scoring</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <p><strong>Gridding</strong> — 2-wide format in hot pit lane.</p>
+        <p><strong>Qualifying</strong> — Number draw for qualifying position. Each driver completes a sighting lap then 2 flying laps.</p>
+        <p><strong>Heats</strong> — Grid positions based on qualifying times. Grids over 16 karts split into multiple heats.</p>
+        <p><strong>Scoring</strong> — Recorded by Lap Monitor timing system. Driver's responsibility to ensure transponder is correctly wired and functioning. Video camera set at start/finish line for all races.</p>
+        <p><strong>Points</strong> — Awarded to A-Main finishers only. Must finish race in entirety.</p>
+        <p><strong>Jumping Start Penalty</strong> — Black flag issued. Driver has 2 laps to return for a stop-and-go.</p>
+        <p><strong>Post Race Tech</strong> — All drivers proceed directly to pit lane scales for weigh-in after each heat and main. Driver remains in kart until after weigh-in. Underweight = possible teardown and claim of suspect parts.</p>
+        <p><strong>Appeals</strong> — Can be submitted verbally, by text, or email to race director. Response will be prompt.</p>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 8</div><div class="rule-title">Driver Safety Requirements</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <div class="rule-warn">⚠ NECK BRACE IS MANDATORY</div>
+        <ul style="margin-top:12px">
+          <li>Long pants</li>
+          <li>Long sleeve shirt</li>
+          <li>Closed-toe shoes (steel-toe recommended)</li>
+          <li>Gloves</li>
+          <li><strong>DOT Certified Full Face Street Bike Style Helmet</strong> (Snell recommended)</li>
+        </ul>
+        <p style="margin-top:10px"><strong>Prohibited:</strong> Open-toed shoes/sandals, capes, scarves, tear-off lenses</p>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 9</div><div class="rule-title">Machine Safety Requirements</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <ul>
+          <li><strong>Bumpers</strong> — Front and rear required. Rear must cover both rear tires, loop/round bar. Front must extend forward of front wheels. OPEN TUBE FRONT BUMPER ONLY — NO NOSE OR BODIES.</li>
+          <li><strong>Brakes</strong> — Functioning rear brakes required. All fasteners safety wired or locking clipped.</li>
+          <li><strong>Rotor Guard</strong> — Required, durable material.</li>
+          <li><strong>Axle Sprocket Guards</strong> — Required on both sides.</li>
+          <li><strong>Nerf Bars</strong> — Required on both sides, minimum flush within 1" of outside of rear wheel.</li>
+          <li><strong>Side Panels</strong> — Max 12" tall, no further than centerlines of front/rear axles. Front and rear tires must remain exposed. Top cannot extend more than 2" toward driver.</li>
+          <li><strong>Steering</strong> — All fasteners safety wired or locking clipped.</li>
+          <li><strong>Weight</strong> — Through bolted with nyloc or double nuts. ALL WEIGHT MUST BE PAINTED WHITE for visibility.</li>
+          <li><strong>Chain Guard & Heat Shield</strong> — Required on all machines.</li>
+          <li><strong>Throttle Return Spring</strong> — Must be functioning.</li>
+          <li><strong>Kill Switch</strong> — Must be functioning.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 10–11</div><div class="rule-title">Tires, Numbers & Tech Inspection</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <p><strong>Tires</strong> — Slick only, any brand. Can be shaped/surfaced. No grooved or siped tires. Max wheel diameter 6".</p>
+        <p><strong>Front Number Plate</strong> — 6"x6", white background, black numbers, fastened to front of bumper.</p>
+        <p><strong>Side Numbers</strong> — Minimum 7" tall, contrasting colors for visibility.</p>
+        <p><strong>Rear Number Plate</strong> — Not required but recommended for accurate scoring.</p>
+        <p><strong>Safety Inspection</strong> — ALL machines undergo mandatory safety inspection before being permitted on track for the first time. Helmets and apparel also inspected.</p>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 13a</div><div class="rule-title">Stock Predator Class Rules</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <p><strong>Chassis</strong> — Any year, make, model rigid kart chassis meeting Section 9 safety requirements.</p>
+        <p><strong>Tires</strong> — Open compound and brand. Can be cleaned. External prep wipe only (no internal prep).</p>
+        <p><strong>Engine</strong> — 212 Predator SKU# 60363 AND 69730 ONLY. Must remain completely stock with the following exceptions only:</p>
+        <ul>
+          <li>Carburetor main jet replacement</li>
+          <li>Carburetor emulsion tube replacement / float level adjustment</li>
+          <li>Complete governor removal</li>
+          <li>Oil level sensor removal, fuel tank removal</li>
+          <li>Valve lash adjustment, valve lapping, valve spring replacement PN# 711055</li>
+          <li>Spark plug replacement</li>
+          <li>Ignition coil to flywheel gap adjustment</li>
+          <li>Aftermarket fuel pump mounting plate/throttle linkage</li>
+          <li>Diaphragm fuel pump installation</li>
+          <li>Stock airbox replaceable with aftermarket open air filter</li>
+          <li>Data ports allowed (EGT, vacuum, temp, etc.)</li>
+          <li>Drivers 420lb+ total weight: any aluminum flywheel permitted</li>
+        </ul>
+        <p><strong>Clutch & Gearing</strong> — Drum or disc clutch only, any brand. Open gearing.</p>
+        <p><strong>Minimum Weight</strong> — <span style="color:var(--orange);font-weight:700">350 lbs kart + driver post-race. NO EXCEPTIONS.</span></p>
+        <p><strong>Fuel</strong> — Gasoline only, any octane. No additives.</p>
+      </div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleRule(this)">
+        <div><div class="rule-num">Section 13b</div><div class="rule-title">Limited Modified Class Rules</div></div>
+        <div class="rule-chevron">▾</div>
+      </div>
+      <div class="rule-body">
+        <p><strong>Chassis</strong> — Any year, make, model rigid kart chassis meeting Section 9 safety requirements.</p>
+        <p><strong>Tires</strong> — Open compound and brand. Internal/external prep permitted.</p>
+        <p><strong>Allowable Engines</strong> — Predator 212, Honda GX200, Tillotson 212. Cast block and head (no billet). Completely unmodified stock muffler.</p>
+        <p><strong>Clutch & Gearing</strong> — Open clutch any brand, open gearing.</p>
+        <p><strong>Weight</strong> — No minimum weight.</p>
+        <p><strong>Fuel</strong> — Open fuel.</p>
+      </div>
+    </div>
+
+    <div class="rule-warn" style="margin-top:14px;border-radius:10px;padding:16px 18px;font-size:12px">
+      KART RACING IS DANGEROUS. EVERY COMPETITOR ASSUMES BY HIS/HER PARTICIPATION RESPONSIBILITY FOR ALL RISKS OF COMPETITION INCLUDING INJURY OR DEATH. RACE DIRECTOR: "MAD MIKE" MILLER.
+    </div>
+  </div>
+
+  <!-- INFO -->
+  <div class="page" id="page-info">
+    <div class="sect-lbl" style="margin-bottom:14px">Track Info</div>
+    <div class="info-card"><h3>The Handle</h3><p>Backyard kart track · Westville, Indiana<br>1/8 mile dirt oval · Private residence<br>Race Director: Mad Mike Miller</p></div>
+    <div class="info-card"><h3>Classes</h3><p>· Stock Predator Class — open to all eligible drivers<br>· Limited Modified Class — invite/qualification required</p></div>
+    <div class="info-card"><h3>2026 Schedule</h3><p>May 16 · Jun 6 · Jul 18 · Aug 15 (double header) · Sep 12 · Oct 10 · Oct 31 (weather permitting)</p></div>
+    <div class="info-card"><h3>TNT Nights</h3><p>Every Wednesday, weather permitting. Start date TBD. 9pm cutoff.</p></div>
+    <div class="info-card"><h3>Safety Contact</h3><p>Safety is the top priority at The Handle. Announce any concerns immediately to Race Director Mad Mike Miller.</p></div>
+  </div>
+
+</div></div>
+
+<footer class="site-footer">
+  <img class="footer-kart" src="kart.jpg" alt="">
+  <div class="footer-socials">
+    <a class="footer-social-btn" href="https://www.facebook.com/groups/845976358153297" target="_blank"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Facebook</a>
+    <a class="footer-social-btn" href="https://www.instagram.com/yardkartz/" target="_blank"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg> Instagram</a>
+    <a class="footer-social-btn" href="https://www.youtube.com/@yardkartz" target="_blank"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg> YouTube</a>
+  </div>
+  YardKartz! · The Handle · Westville, IN · <a href="/admin">Admin</a>
+</footer>
+
+<script>
+const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
+const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
+
+const get = async (table, q='') => {
+  const r = await fetch(`${SURL}/rest/v1/${table}?${q}`, {headers:{'apikey':SKEY,'Authorization':`Bearer ${SKEY}`}});
+  return r.json();
+};
+
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-inner button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+function toggleRule(header) {
+  header.classList.toggle('open');
+  header.nextElementSibling.classList.toggle('open');
+}
+
+const pc = i => i===0?'pos p1':i===1?'pos p2':i===2?'pos p3':'pos';
+
+async function loadHome() {
+  const [drivers, races, results] = await Promise.all([
+    get('drivers','select=*&order=wins.desc'),
+    get('races','select=*&order=race_date.asc'),
+    get('results','select=*,drivers(name,number)&order=position.asc')
+  ]);
+  document.getElementById('sc-drivers').textContent = drivers.length||'0';
+  const past = races.filter(r=>r.status==='past');
+  document.getElementById('sc-races').textContent = past.length||'0';
+
+  const next = races.find(r=>r.status==='upcoming');
+  if (next) {
+    const d = new Date(next.race_date+'T12:00:00');
+    document.getElementById('home-next').innerHTML = `
+      <div class="next-race">
+        <div><div class="next-lbl">Next Race Up</div><div class="next-name">Round ${next.round} — ${next.name}</div></div>
+        <div class="next-date">${d.toLocaleString('en',{month:'short'}).toUpperCase()} ${d.getDate()}<span>2026</span></div>
+      </div>`;
+  }
+
+  const last = [...past].sort((a,b)=>new Date(b.race_date)-new Date(a.race_date))[0];
+  if (last) {
+    const lr = results.filter(r=>r.race_id===last.id).slice(0,5);
+    if (lr.length) {
+      document.getElementById('lbl-results').style.display='block';
+      document.getElementById('lbl-results').textContent=`Last race — R${last.round} ${last.name}`;
+      document.getElementById('home-results').innerHTML=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:50px">Pos</th><th>Driver</th><th>Lap Time</th></tr></thead><tbody>${lr.map((r,i)=>`<tr><td><span class="${pc(i)}">${r.position}</span></td><td>${r.drivers?.name||'—'}</td><td><span class="laptime">${r.lap_time||'—'}</span></td></tr>`).join('')}</tbody></table></div>`;
+    }
+  }
+
+  if (drivers.length) {
+    const top = drivers[0];
+    const pts = results.filter(r=>r.driver_id===top.id).reduce((s,r)=>s+(r.points||0),0);
+    document.getElementById('lbl-leader').style.display='block';
+    document.getElementById('home-leader').innerHTML=`<div class="leader-card"><div class="leader-num">${top.number}</div><div><div class="leader-name">${top.name}</div><div class="leader-sub">${pts} pts · ${top.wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
+  }
+}
+
+async function loadDrivers() {
+  const d = await get('drivers','select=*&order=wins.desc,name.asc');
+  const g = document.getElementById('driver-grid');
+  if(!d.length){g.innerHTML='<div class="empty">No drivers yet</div>';return;}
+  g.innerHTML=d.map((dr,i)=>{
+    const isNolan = dr.name==='Nolan McKim' && dr.number==='7';
+    const isEric = dr.name==='Eric Peek';
+    const isGoose = dr.name==='Goose' && dr.number==='76';
+    const isMailbox = dr.name==='Newt' || dr.name==='Bubba Hayes';
+    const numEl = isNolan
+      ? `<img src="nolan7.png" alt="7" style="width:52px;height:52px;object-fit:contain;mix-blend-mode:lighten;flex-shrink:0;">`
+      : isEric
+      ? `<img src="eric11.png" alt="11" style="width:56px;height:52px;object-fit:contain;mix-blend-mode:lighten;flex-shrink:0;">`
+      : isGoose
+      ? `<img src="goose76.png" alt="76" style="width:56px;height:52px;object-fit:contain;mix-blend-mode:lighten;flex-shrink:0;">`
+      : isMailbox
+      ? `<div style="flex-shrink:0;display:flex;gap:3px;align-items:center;justify-content:center;">
+           ${dr.number.toString().split('').map(digit => `
+             <div style="
+               background:linear-gradient(160deg,#F5C800 0%,#D4A800 50%,#B8900A 100%);
+               transform:skewX(-10deg);
+               padding:4px 5px;
+               border:1.5px solid #8B6E00;
+               box-shadow:2px 2px 0 #5a4500,inset 0 1px 0 rgba(255,255,255,0.35);
+               border-radius:2px;
+               min-width:20px;
+               text-align:center;
+             ">
+               <span style="
+                 display:inline-block;
+                 transform:skewX(10deg);
+                 font-family:'Barlow Condensed',sans-serif;
+                 font-size:20px;
+                 font-weight:900;
+                 color:#111;
+                 line-height:1;
+               ">${digit}</span>
+             </div>`).join('')}
+         </div>`
+      : `<div class="d-num" style="color:${dr.color||'#F26419'}">${dr.number}</div>`;
+    const nameEl = isNolan
+      ? `<div class="d-name"><span style="color:#F4922A">Nolan</span> <span style="color:#2E8B2E">McKim</span></div>`
+      : isEric
+      ? `<div class="d-name"><span style="color:#4EB3E8">Eric</span> <span style="color:#CC5500">Peek</span></div>`
+      : isGoose
+      ? `<div class="d-name"><span style="color:#9B30C8">Goose</span></div>`
+      : isMailbox
+      ? `<div class="d-name"><span style="color:#D4A800">${dr.name}</span></div>`
+      : `<div class="d-name">${dr.name}</div>`;
+    return `<div class="driver-card">${numEl}<div>${nameEl}<div class="d-meta">${dr.wins} win${dr.wins!==1?'s':''} · ${dr.starts} start${dr.starts!==1?'s':''}</div><div class="d-badge${i===0&&dr.wins>0?' hot':''}">${i===0&&dr.wins>0?'Points leader':`P${i+1}`}</div></div></div>`;
+  }).join('');
+}
+
+let currentSeason = 2026;
+
+function switchSeason(season, btn) {
+  currentSeason = season;
+  document.querySelectorAll('#page-points .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pts-season-label').textContent = season === 2026
+    ? '2026 Championship Standings'
+    : '2025 Final Standings';
+  loadPoints();
+}
+
+async function loadPoints() {
+  const season = currentSeason;
+  const [drivers, results] = await Promise.all([
+    get('drivers','select=*'),
+    get('results', 'select=*&season=eq.' + season)
+  ]);
+  const pts = {};
+  if (season === 2026) {
+    drivers.forEach(d => { pts[d.id] = {driver:d, total:0, wins:0}; });
+  }
+  results.forEach(r => {
+    if (!pts[r.driver_id]) {
+      const d = drivers.find(x => x.id === r.driver_id);
+      if (d) pts[d.id] = {driver:d, total:0, wins:0};
+    }
+    if (pts[r.driver_id]) {
+      pts[r.driver_id].total += (r.points||0);
+      if (r.position === 1) pts[r.driver_id].wins++;
+    }
+  });
+  const sorted = Object.values(pts)
+    .filter(p => season === 2025 ? p.total > 0 : true)
+    .sort((a,b) => b.total - a.total || b.wins - a.wins);
+  const max = sorted[0]?.total || 1;
+  const tb = document.getElementById('pts-body');
+  if (!sorted.length) {
+    const msg = season === 2026 ? "Season hasn't started yet" : "No 2025 data found";
+    tb.innerHTML = '<tr><td colspan="4"><div class="empty">' + msg + '</div></td></tr>';
+    return;
+  }
+  tb.innerHTML = sorted.map((p,i) => {
+    const bar = Math.max(14, Math.round(p.total / Math.max(max,1) * 110));
+    const dim = p.total < max * 0.5 ? ' dim' : '';
+    return '<tr><td><span class="' + pc(i) + '">' + (i+1) + '</span></td><td>' + p.driver.name + '</td><td>' + p.wins + '</td><td><div class="pts-row"><div class="pts-bar' + dim + '" style="width:' + bar + 'px"></div><span class="pts-n">' + p.total + '</span></div></td></tr>';
+  }).join('');
+}
+
+let allR=[];
+async function loadSchedule(){
+  allR=await get('races','select=*&order=race_date.asc');
+  renderR('all');
+}
+function renderR(filter){
+  const list=document.getElementById('race-list');
+  const races=filter==='all'?allR:allR.filter(r=>r.status===filter);
+  if(!races.length){list.innerHTML='<div class="empty">No races found</div>';return;}
+  list.innerHTML=races.map(r=>{
+    const d=new Date(r.race_date+'T12:00:00');
+    const mo=d.toLocaleString('en',{month:'short'}).toUpperCase();
+    const dy=d.getDate();
+    const past=r.status==='past';
+    return `<div class="race-row ${r.status}"><div class="r-date"><div class="r-month">${mo}</div><div class="r-day">${dy}</div></div><div><div class="r-name">R${r.round} — ${r.name}</div><div class="r-detail">The Handle · ${r.laps} laps</div></div>${past&&r.winner_name?`<div class="r-winner">${r.winner_name} wins</div>`:''}${!past?`<div class="r-pill">Upcoming</div>`:''}</div>`;
+  }).join('');
+}
+function filterR(type,btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderR(type);
+}
+
+async function loadRecords(){
+  const recs=await get('lap_records','select=*,drivers(name),races(name,round)&order=lap_time_seconds.asc');
+  const tb=document.getElementById('rec-body');
+  if(!recs.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No lap times recorded yet</div></td></tr>';return;}
+  tb.innerHTML=recs.map((r,i)=>{
+    const d=r.set_date?new Date(r.set_date+'T12:00:00').toLocaleDateString('en',{month:'short',day:'numeric'}):'—';
+    return `<tr><td><span class="${pc(i)}">${i+1}</span></td><td>${r.drivers?.name||'—'}</td><td><span class="laptime">${r.lap_time_display}</span>${i===0?'<span class="rec-badge">Track Record</span>':''}</td><td>${d}</td><td>${r.races?`R${r.races.round}`:'—'}</td></tr>`;
+  }).join('');
+}
+
+async function loadVideos(){
+  const vids=await get('videos','select=*&order=created_at.desc');
+  const g=document.getElementById('vid-grid');
+  if(!vids.length){g.innerHTML='<div class="empty">No videos yet — add some in admin</div>';return;}
+  g.innerHTML=vids.map(v=>{
+    const m=v.youtube_url?.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^&\n?#]+)/);
+    const id=m?m[1]:null;
+    return `<div class="v-card" onclick="window.open('${v.youtube_url}','_blank')"><div class="v-thumb">${id?`<img src="https://img.youtube.com/vi/${id}/mqdefault.jpg" onerror="this.parentElement.innerHTML='<div class=v-play><svg viewBox=\\'0 0 24 24\\'><path d=\\'M8 5v14l11-7z\\'/></svg></div>'">`:`<div class="v-play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>`}</div><div class="v-info"><div class="v-title">${v.title}</div><div class="v-meta">${v.duration||''}</div></div></div>`;
+  }).join('');
+}
+
+loadHome(); loadDrivers(); loadPoints(); loadSchedule(); loadRecords(); loadVideos();
+</script>
+</body>
+</html>
