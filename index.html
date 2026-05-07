@@ -188,6 +188,64 @@
   }
   .footer-social-btn:hover { color: var(--orange); border-color: var(--orange); }
   .footer-social-btn svg { width: 14px; height: 14px; fill: currentColor; flex-shrink: 0; }
+
+  /* TRACK CONDITIONS */
+  .wx-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; margin-bottom: 14px; }
+  .wx-grid.four { grid-template-columns: repeat(4,1fr); }
+  .wx-card {
+    background: var(--asphalt-mid); border: 1px solid var(--bdr);
+    border-radius: 10px; padding: 14px 16px; text-align: center;
+  }
+  .wx-card.featured { border-color: var(--orange); border-top: 3px solid var(--orange); }
+  .wx-icon { font-size: 26px; margin-bottom: 4px; }
+  .wx-val {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 32px; font-weight: 900; color: var(--orange); line-height: 1;
+  }
+  .wx-val.big { font-size: 42px; }
+  .wx-val.good { color: #2E8B2E; }
+  .wx-val.ok { color: var(--yellow); }
+  .wx-val.bad { color: #CC2222; }
+  .wx-lbl {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--text2); margin-top: 4px;
+  }
+  .wx-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .wx-header {
+    background: var(--asphalt-mid); border: 1px solid var(--bdr);
+    border-radius: 10px; padding: 14px 18px; margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .wx-location { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; text-transform: uppercase; color: var(--text); }
+  .wx-condition { font-size: 13px; color: var(--text2); margin-top: 2px; text-transform: capitalize; }
+  .wx-updated { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; color: var(--text2); letter-spacing: 1px; text-align: right; }
+  .wx-refresh-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    background: none; border: 1px solid var(--bdr); border-radius: 6px;
+    color: var(--text2); padding: 5px 12px; cursor: pointer; margin-top: 6px;
+    transition: all 0.12s;
+  }
+  .wx-refresh-btn:hover { border-color: var(--orange); color: var(--orange); }
+  .da-explain {
+    background: var(--asphalt-mid); border: 1px solid var(--bdr);
+    border-left: 3px solid var(--orange);
+    border-radius: 10px; padding: 14px 18px; margin-top: 14px;
+  }
+  .da-explain h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: var(--orange); margin-bottom: 8px; }
+  .da-explain p { font-size: 13px; color: var(--text2); line-height: 1.7; }
+  .wx-loading { text-align: center; padding: 60px 20px; color: var(--text2); font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+  .da-rating {
+    display: inline-block; font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    padding: 3px 10px; border-radius: 4px; margin-top: 6px;
+  }
+  .da-rating.good { background: rgba(46,139,46,0.2); color: #2E8B2E; border: 1px solid #2E8B2E; }
+  .da-rating.ok { background: rgba(247,201,72,0.15); color: var(--yellow); border: 1px solid var(--yellow); }
+  .da-rating.bad { background: rgba(204,34,34,0.15); color: #CC2222; border: 1px solid #CC2222; }
+  @media(max-width:600px){ .wx-grid.four{ grid-template-columns: repeat(2,1fr); } }
 </style>
 </head>
 <body>
@@ -218,6 +276,7 @@
     <button onclick="showPage('records',this)">Records</button>
     <button onclick="showPage('videos',this)">Videos</button>
     <button onclick="showPage('rules',this)">Rulebook</button>
+    <button onclick="showPage('track',this);loadWeather()">Track</button>
     <button onclick="showPage('info',this)">Info</button>
   </div>
 </nav>
@@ -533,6 +592,14 @@
     </div>
   </div>
 
+
+  <!-- TRACK CONDITIONS -->
+  <div class="page" id="page-track">
+    <div class="sect-lbl" style="margin-bottom:14px">Track Conditions — Westville, IN</div>
+    <div id="wx-content"><div class="wx-loading">Fetching weather data</div></div>
+    <button class="wx-refresh-btn" onclick="loadWeather()" style="margin-bottom:14px">↻ Refresh</button>
+  </div>
+
   <!-- INFO -->
   <div class="page" id="page-info">
     <div class="sect-lbl" style="margin-bottom:14px">Track Info</div>
@@ -760,6 +827,152 @@ async function loadVideos(){
     const id=m?m[1]:null;
     return `<div class="v-card" onclick="window.open('${v.youtube_url}','_blank')"><div class="v-thumb">${id?`<img src="https://img.youtube.com/vi/${id}/mqdefault.jpg" onerror="this.parentElement.innerHTML='<div class=v-play><svg viewBox=\\'0 0 24 24\\'><path d=\\'M8 5v14l11-7z\\'/></svg></div>'">`:`<div class="v-play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>`}</div><div class="v-info"><div class="v-title">${v.title}</div><div class="v-meta">${v.duration||''}</div></div></div>`;
   }).join('');
+}
+
+
+const OWM_KEY = 'e834ea45877570b8c88b3f28aaee0127';
+const WX_LAT = 41.5303;
+const WX_LON = -87.0036;
+const ELEVATION_FT = 680; // Westville, IN elevation
+
+function calcDensityAltitude(tempF, dewpointF, pressureHpa) {
+  // Convert units
+  const tempC = (tempF - 32) * 5/9;
+  const dewC = (dewpointF - 32) * 5/9;
+
+  // Saturation vapor pressure (hPa)
+  const es = 6.1078 * Math.pow(10, (7.5 * tempC) / (237.3 + tempC));
+  const ed = 6.1078 * Math.pow(10, (7.5 * dewC) / (237.3 + dewC));
+  const rh = (ed / es) * 100;
+
+  // Virtual temperature correction
+  const e = (rh / 100) * es;
+  const Tv = (tempC + 273.15) / (1 - (e / pressureHpa) * (1 - 0.622));
+
+  // Pressure altitude (ft)
+  const pressureAlt = 145366.45 * (1 - Math.pow(pressureHpa / 1013.25, 0.190284));
+
+  // Density altitude
+  const da = pressureAlt + (120 * (Tv - 288.15));
+  return Math.round(da);
+}
+
+function getDARating(da) {
+  if (da < 1500) return { cls: 'good', label: 'Great conditions' };
+  if (da < 3000) return { cls: 'ok',   label: 'Fair conditions' };
+  return { cls: 'bad', label: 'Tough conditions' };
+}
+
+function dewpoint(tempF, rh) {
+  const T = (tempF - 32) * 5/9;
+  const a = 17.27, b = 237.7;
+  const alpha = ((a * T) / (b + T)) + Math.log(rh / 100);
+  const dpC = (b * alpha) / (a - alpha);
+  return dpC * 9/5 + 32;
+}
+
+async function loadWeather() {
+  const el = document.getElementById('wx-content');
+  el.innerHTML = '<div class="wx-loading">Fetching weather data</div>';
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${WX_LAT}&lon=${WX_LON}&appid=${OWM_KEY}&units=imperial`
+    );
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.message);
+
+    const tempF     = Math.round(d.main.temp);
+    const feelsF    = Math.round(d.main.feels_like);
+    const humidity  = d.main.humidity;
+    const pressHpa  = d.main.pressure;
+    const pressinHg = (pressHpa * 0.02953).toFixed(2);
+    const windMph   = Math.round(d.wind.speed);
+    const windDir   = d.wind.deg;
+    const vis       = d.visibility ? Math.round(d.visibility / 1609.34) : '—';
+    const condition = d.weather[0].description;
+    const clouds    = d.clouds?.all ?? '—';
+    const dp        = Math.round(dewpoint(tempF, humidity));
+    const da        = calcDensityAltitude(tempF, dp, pressHpa);
+    const rating    = getDARating(da);
+
+    const windDirs  = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const windCardinal = windDirs[Math.round(windDir / 22.5) % 16];
+
+    const now = new Date().toLocaleTimeString('en', {hour:'numeric', minute:'2-digit'});
+
+    el.innerHTML = `
+      <div class="wx-header">
+        <div>
+          <div class="wx-location">📍 Westville, IN</div>
+          <div class="wx-condition">${condition}</div>
+        </div>
+        <div class="wx-updated">Updated ${now}<br><span style="font-size:10px;opacity:0.6">OpenWeatherMap</span></div>
+      </div>
+
+      <div class="sect-lbl" style="margin-bottom:10px">Density Altitude</div>
+      <div style="margin-bottom:14px">
+        <div class="wx-card featured" style="text-align:center;padding:20px;">
+          <div class="wx-val big ${rating.cls}">${da.toLocaleString()} ft</div>
+          <div class="wx-lbl" style="margin-top:6px">Density Altitude</div>
+          <div class="da-rating ${rating.cls}">${rating.label}</div>
+          <div class="wx-sub" style="margin-top:8px">Lower = more power · Higher = less power</div>
+        </div>
+      </div>
+
+      <div class="sect-lbl" style="margin-bottom:10px">Current Conditions</div>
+      <div class="wx-grid four">
+        <div class="wx-card">
+          <div class="wx-icon">🌡️</div>
+          <div class="wx-val">${tempF}°</div>
+          <div class="wx-lbl">Temp (F)</div>
+          <div class="wx-sub">Feels ${feelsF}°</div>
+        </div>
+        <div class="wx-card">
+          <div class="wx-icon">💧</div>
+          <div class="wx-val">${humidity}%</div>
+          <div class="wx-lbl">Humidity</div>
+          <div class="wx-sub">Dewpoint ${dp}°F</div>
+        </div>
+        <div class="wx-card">
+          <div class="wx-icon">🌬️</div>
+          <div class="wx-val">${windMph}</div>
+          <div class="wx-lbl">Wind MPH</div>
+          <div class="wx-sub">${windCardinal} · ${d.wind.gust ? Math.round(d.wind.gust)+' mph gusts' : 'No gusts'}</div>
+        </div>
+        <div class="wx-card">
+          <div class="wx-icon">📊</div>
+          <div class="wx-val" style="font-size:24px">${pressinHg}</div>
+          <div class="wx-lbl">Pressure inHg</div>
+          <div class="wx-sub">${pressHpa} hPa</div>
+        </div>
+      </div>
+
+      <div class="wx-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="wx-card">
+          <div class="wx-icon">☁️</div>
+          <div class="wx-val">${clouds}%</div>
+          <div class="wx-lbl">Cloud Cover</div>
+        </div>
+        <div class="wx-card">
+          <div class="wx-icon">👁️</div>
+          <div class="wx-val">${vis}</div>
+          <div class="wx-lbl">Visibility mi</div>
+        </div>
+        <div class="wx-card">
+          <div class="wx-icon">🏔️</div>
+          <div class="wx-val" style="font-size:24px">${ELEVATION_FT}</div>
+          <div class="wx-lbl">Elevation ft</div>
+          <div class="wx-sub">Westville, IN</div>
+        </div>
+      </div>
+
+      <div class="da-explain">
+        <h3>What is Density Altitude?</h3>
+        <p>Density altitude is the effective altitude your engine thinks it's at based on temp, humidity, and pressure. <strong style="color:var(--text)">Lower DA = denser air = more oxygen = more power.</strong> Higher DA means thinner air and slower lap times. On a hot, humid day the DA can be thousands of feet higher than your actual elevation — your Predator feels it.</p>
+      </div>`;
+  } catch(err) {
+    el.innerHTML = `<div class="wx-loading">Could not load weather — check connection<br><span style="font-size:11px;opacity:0.5">${err.message}</span></div>`;
+  }
 }
 
 loadHome(); loadDrivers(); loadPoints(); loadSchedule(); loadRecords(); loadVideos();
