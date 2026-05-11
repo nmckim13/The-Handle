@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — The Handle</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --orange: #F26419; --yellow: #F7C948;
+    --asphalt: #1E1E1E; --asphalt-mid: #2A2A2A;
+    --bg: #f5f5f5; --bg2: #ffffff; --bg3: #eeeeee;
+    --text: #111111; --text2: #666666;
+    --bdr: #dddddd; --green: #2D8B45; --red: #C0392B;
+  }
+  body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .admin-header { background: var(--asphalt); border-bottom: 3px solid var(--orange); padding: 0 20px; }
+  .admin-header-inner { max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 0 12px; }
+  .admin-logo { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; color: var(--orange); text-transform: uppercase; letter-spacing: -0.5px; }
+  .admin-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); padding: 4px 10px; border-radius: 4px; }
+  .back-link { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.4); text-decoration: none; }
+  .back-link:hover { color: var(--orange); }
+
+  .admin-nav { background: var(--asphalt-mid); border-bottom: 1px solid rgba(255,255,255,0.07); padding: 0 20px; }
+  .admin-nav-inner { max-width: 800px; margin: 0 auto; display: flex; overflow-x: auto; }
+  .admin-nav-inner button { background: none; border: none; border-bottom: 3px solid transparent; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.45); padding: 11px 14px; cursor: pointer; transition: all 0.12s; white-space: nowrap; }
+  .admin-nav-inner button:hover { color: rgba(255,255,255,0.8); }
+  .admin-nav-inner button.active { color: var(--orange); border-bottom-color: var(--orange); }
+
+  .admin-main { max-width: 800px; margin: 0 auto; padding: 24px 20px 48px; }
+  .admin-page { display: none; }
+  .admin-page.active { display: block; }
+
+  /* CARDS */
+  .card { background: var(--bg2); border-radius: 10px; border: 1px solid var(--bdr); padding: 20px 22px; margin-bottom: 16px; }
+  .card-title { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; color: var(--text); border-bottom: 1px solid var(--bdr); padding-bottom: 10px; }
+
+  /* FORMS */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid.full { grid-template-columns: 1fr; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); }
+  .form-group input, .form-group select { background: var(--bg); border: 1px solid var(--bdr); border-radius: 6px; padding: 9px 12px; font-family: 'Barlow', sans-serif; font-size: 14px; color: var(--text); width: 100%; transition: border-color 0.12s; }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--orange); }
+
+  .btn { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 10px 20px; border: none; border-radius: 7px; cursor: pointer; transition: all 0.12s; }
+  .btn-primary { background: var(--orange); color: #fff; }
+  .btn-primary:hover { background: #d4551a; }
+  .btn-danger { background: none; border: 1px solid #ddd; color: var(--red); font-size: 12px; padding: 5px 10px; border-radius: 5px; }
+  .btn-danger:hover { background: var(--red); color: #fff; border-color: var(--red); }
+
+  /* EXISTING LIST */
+  .item-list { margin-top: 16px; border-top: 1px solid var(--bdr); padding-top: 14px; }
+  .item-list-title { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text2); margin-bottom: 10px; }
+  .item-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 7px; background: var(--bg); border: 1px solid var(--bdr); margin-bottom: 6px; gap: 10px; }
+  .item-name { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; text-transform: uppercase; }
+  .item-meta { font-size: 12px; color: var(--text2); }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--asphalt); color: #fff; padding: 12px 24px; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; transition: transform 0.3s; z-index: 9999; border-left: 3px solid var(--orange); }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { border-left-color: var(--red); }
+
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="admin-header">
+  <div class="admin-header-inner">
+    <div>
+      <div class="admin-logo">The Handle</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="admin-badge">Admin</div>
+      <a href="/" class="back-link">← Live site</a>
+    </div>
+  </div>
+</header>
+
+<nav class="admin-nav">
+  <div class="admin-nav-inner">
+    <button class="active" onclick="aShow('drivers',this)">Drivers</button>
+    <button onclick="aShow('races',this)">Races</button>
+    <button onclick="aShow('results',this)">Results</button>
+    <button onclick="aShow('records',this)">Lap Records</button>
+    <button onclick="aShow('videos',this)">Videos</button>
+  </div>
+</nav>
+
+<div class="admin-main">
+
+  <!-- DRIVERS -->
+  <div class="admin-page active" id="ap-drivers">
+    <div class="card">
+      <div class="card-title">Add Driver</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Full Name</label><input id="d-name" placeholder="Tyler Mercer"></div>
+        <div class="form-group"><label>Car Number</label><input id="d-number" placeholder="7"></div>
+        <div class="form-group"><label>Color (hex)</label><input id="d-color" placeholder="#F26419" value="#F26419"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="addDriver()">Add Driver</button></div>
+      </div>
+      <div class="item-list">
+        <div class="item-list-title">Current drivers</div>
+        <div id="driver-list"><em style="color:var(--text2);font-size:13px">Loading...</em></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RACES -->
+  <div class="admin-page" id="ap-races">
+    <div class="card">
+      <div class="card-title">Add Race</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Round #</label><input id="r-round" type="number" placeholder="15"></div>
+        <div class="form-group"><label>Race Name</label><input id="r-name" placeholder="Summer Showdown"></div>
+        <div class="form-group"><label>Date</label><input id="r-date" type="date"></div>
+        <div class="form-group"><label>Laps</label><input id="r-laps" type="number" placeholder="10" value="10"></div>
+        <div class="form-group"><label>Status</label>
+          <select id="r-status">
+            <option value="upcoming">Upcoming</option>
+            <option value="past">Past (completed)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Winner Name (if past)</label><input id="r-winner" placeholder="Tyler Mercer"></div>
+      </div>
+      <div style="margin-top:14px"><button class="btn btn-primary" onclick="addRace()">Add Race</button></div>
+      <div class="item-list">
+        <div class="item-list-title">All races</div>
+        <div id="race-list"><em style="color:var(--text2);font-size:13px">Loading...</em></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="admin-page" id="ap-results">
+    <div class="card">
+      <div class="card-title">Add Race Result</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Race</label><select id="res-race"><option value="">Select race...</option></select></div>
+        <div class="form-group"><label>Driver</label><select id="res-driver"><option value="">Select driver...</option></select></div>
+        <div class="form-group"><label>Position</label><input id="res-pos" type="number" placeholder="1" min="1"></div>
+        <div class="form-group"><label>Lap Time (e.g. 1:04.2)</label><input id="res-time" placeholder="1:04.2"></div>
+        <div class="form-group"><label>Points Awarded</label><input id="res-pts" type="number" placeholder="25"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="addResult()">Add Result</button></div>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin-top:8px">Tip: Add one row per driver per race. Suggested points: 1st=25, 2nd=18, 3rd=15, 4th=12, 5th=10, 6th=8</p>
+    </div>
+  </div>
+
+  <!-- LAP RECORDS -->
+  <div class="admin-page" id="ap-records">
+    <div class="card">
+      <div class="card-title">Add Lap Record</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Driver</label><select id="rec-driver"><option value="">Select driver...</option></select></div>
+        <div class="form-group"><label>Race</label><select id="rec-race"><option value="">Select race...</option></select></div>
+        <div class="form-group"><label>Lap Time (display, e.g. 58.4)</label><input id="rec-display" placeholder="58.4"></div>
+        <div class="form-group"><label>Lap Time (seconds, e.g. 58.4)</label><input id="rec-seconds" type="number" step="0.01" placeholder="58.4"></div>
+        <div class="form-group"><label>Date</label><input id="rec-date" type="date"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="addRecord()">Add Record</button></div>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin-top:8px">Only enter each driver's personal best. The site auto-ranks by fastest time.</p>
+      <div class="item-list">
+        <div class="item-list-title">Current records</div>
+        <div id="record-list"><em style="color:var(--text2);font-size:13px">Loading...</em></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIDEOS -->
+  <div class="admin-page" id="ap-videos">
+    <div class="card">
+      <div class="card-title">Add YouTube Video</div>
+      <div class="form-grid">
+        <div class="form-group" style="grid-column:1/-1"><label>Video Title</label><input id="v-title" placeholder="R14 Full Race — Backyard Classic"></div>
+        <div class="form-group" style="grid-column:1/-1"><label>YouTube URL</label><input id="v-url" placeholder="https://youtube.com/watch?v=..."></div>
+        <div class="form-group"><label>Duration (e.g. 12 min)</label><input id="v-dur" placeholder="12 min"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="addVideo()">Add Video</button></div>
+      </div>
+      <div class="item-list">
+        <div class="item-list-title">Current videos</div>
+        <div id="video-list"><em style="color:var(--text2);font-size:13px">Loading...</em></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SUPABASE_URL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
+
+  const db = {
+    async get(table, query='') {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+      return res.json();
+    },
+    async post(table, data) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify(data)
+      });
+      return res.json();
+    },
+    async del(table, id) {
+      await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+    }
+  };
+
+  // TOAST
+  function toast(msg, isError=false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // NAV
+  function aShow(id, btn) {
+    document.querySelectorAll('.admin-page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.admin-nav-inner button').forEach(b => b.classList.remove('active'));
+    document.getElementById('ap-' + id).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // POPULATE SELECTS
+  async function populateSelects() {
+    const [drivers, races] = await Promise.all([
+      db.get('drivers', 'select=*&order=name.asc'),
+      db.get('races', 'select=*&order=race_date.desc')
+    ]);
+    const dSelects = ['res-driver','rec-driver'];
+    const rSelects = ['res-race','rec-race'];
+    dSelects.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = '<option value="">Select driver...</option>' + drivers.map(d => `<option value="${d.id}">${d.name} (#${d.number})</option>`).join('');
+    });
+    rSelects.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = '<option value="">Select race...</option>' + races.map(r => `<option value="${r.id}">R${r.round} — ${r.name}</option>`).join('');
+    });
+  }
+
+  // DRIVERS
+  async function loadDriverList() {
+    const drivers = await db.get('drivers', 'select=*&order=wins.desc');
+    const el = document.getElementById('driver-list');
+    if (!drivers.length) { el.innerHTML = '<em style="color:var(--text2);font-size:13px">No drivers yet</em>'; return; }
+    el.innerHTML = drivers.map(d => `
+      <div class="item-row">
+        <div>
+          <div class="item-name" style="color:${d.color}">#${d.number} ${d.name}</div>
+          <div class="item-meta">${d.wins} wins · ${d.starts} starts</div>
+        </div>
+        <button class="btn btn-danger" onclick="deleteDriver('${d.id}')">Remove</button>
+      </div>`).join('');
+  }
+  async function addDriver() {
+    const name = document.getElementById('d-name').value.trim();
+    const number = document.getElementById('d-number').value.trim();
+    const color = document.getElementById('d-color').value.trim() || '#F26419';
+    if (!name || !number) { toast('Name and number required', true); return; }
+    await db.post('drivers', { name, number, color, wins: 0, starts: 0 });
+    toast(`${name} added!`);
+    document.getElementById('d-name').value = '';
+    document.getElementById('d-number').value = '';
+    loadDriverList(); populateSelects();
+  }
+  async function deleteDriver(id) {
+    if (!confirm('Remove this driver?')) return;
+    await db.del('drivers', id);
+    toast('Driver removed');
+    loadDriverList(); populateSelects();
+  }
+
+  // RACES
+  async function loadRaceList() {
+    const races = await db.get('races', 'select=*&order=race_date.desc');
+    const el = document.getElementById('race-list');
+    if (!races.length) { el.innerHTML = '<em style="color:var(--text2);font-size:13px">No races yet</em>'; return; }
+    el.innerHTML = races.map(r => {
+      const d = new Date(r.race_date + 'T12:00:00');
+      return `
+        <div class="item-row">
+          <div>
+            <div class="item-name">R${r.round} — ${r.name}</div>
+            <div class="item-meta">${d.toLocaleDateString('en',{month:'short',day:'numeric'})} · ${r.status} · ${r.laps} laps${r.winner_name ? ' · Winner: ' + r.winner_name : ''}</div>
+          </div>
+          <button class="btn btn-danger" onclick="deleteRace('${r.id}')">Remove</button>
+        </div>`;
+    }).join('');
+  }
+  async function addRace() {
+    const round = parseInt(document.getElementById('r-round').value);
+    const name = document.getElementById('r-name').value.trim();
+    const race_date = document.getElementById('r-date').value;
+    const laps = parseInt(document.getElementById('r-laps').value) || 10;
+    const status = document.getElementById('r-status').value;
+    const winner_name = document.getElementById('r-winner').value.trim() || null;
+    if (!round || !name || !race_date) { toast('Round, name, and date required', true); return; }
+    await db.post('races', { round, name, race_date, laps, status, winner_name });
+    toast(`R${round} — ${name} added!`);
+    ['r-round','r-name','r-date','r-winner'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('r-laps').value = '10';
+    loadRaceList(); populateSelects();
+  }
+  async function deleteRace(id) {
+    if (!confirm('Remove this race?')) return;
+    await db.del('races', id);
+    toast('Race removed');
+    loadRaceList(); populateSelects();
+  }
+
+  // RESULTS
+  async function addResult() {
+    const race_id = document.getElementById('res-race').value;
+    const driver_id = document.getElementById('res-driver').value;
+    const position = parseInt(document.getElementById('res-pos').value);
+    const lap_time = document.getElementById('res-time').value.trim();
+    const points = parseInt(document.getElementById('res-pts').value) || 0;
+    if (!race_id || !driver_id || !position) { toast('Race, driver, and position required', true); return; }
+    await db.post('results', { race_id, driver_id, position, lap_time, points });
+
+    // Update driver wins and starts
+    const drivers = await db.get('drivers', `select=*&id=eq.${driver_id}`);
+    if (drivers[0]) {
+      const isWin = position === 1;
+      await fetch(`${SUPABASE_URL}/rest/v1/drivers?id=eq.${driver_id}`, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ starts: drivers[0].starts + 1, wins: drivers[0].wins + (isWin ? 1 : 0) })
+      });
+    }
+    toast('Result saved!');
+    ['res-pos','res-time','res-pts'].forEach(id => document.getElementById(id).value = '');
+  }
+
+  // LAP RECORDS
+  async function loadRecordList() {
+    const records = await db.get('lap_records', 'select=*,drivers(name,number)&order=lap_time_seconds.asc');
+    const el = document.getElementById('record-list');
+    if (!records.length) { el.innerHTML = '<em style="color:var(--text2);font-size:13px">No records yet</em>'; return; }
+    el.innerHTML = records.map((r,i) => `
+      <div class="item-row">
+        <div>
+          <div class="item-name">${i===0?'🏆 ':''}${r.drivers?.name || '?'} — ${r.lap_time_display}</div>
+          <div class="item-meta">${r.set_date || ''}</div>
+        </div>
+        <button class="btn btn-danger" onclick="deleteRecord('${r.id}')">Remove</button>
+      </div>`).join('');
+  }
+  async function addRecord() {
+    const driver_id = document.getElementById('rec-driver').value;
+    const race_id = document.getElementById('rec-race').value || null;
+    const lap_time_display = document.getElementById('rec-display').value.trim();
+    const lap_time_seconds = parseFloat(document.getElementById('rec-seconds').value);
+    const set_date = document.getElementById('rec-date').value || null;
+    if (!driver_id || !lap_time_display || !lap_time_seconds) { toast('Driver and lap time required', true); return; }
+    await db.post('lap_records', { driver_id, race_id, lap_time_display, lap_time_seconds, set_date });
+    toast('Record saved!');
+    ['rec-display','rec-seconds','rec-date'].forEach(id => document.getElementById(id).value = '');
+    loadRecordList();
+  }
+  async function deleteRecord(id) {
+    if (!confirm('Remove this record?')) return;
+    await db.del('lap_records', id);
+    toast('Record removed');
+    loadRecordList();
+  }
+
+  // VIDEOS
+  async function loadVideoList() {
+    const videos = await db.get('videos', 'select=*&order=created_at.desc');
+    const el = document.getElementById('video-list');
+    if (!videos.length) { el.innerHTML = '<em style="color:var(--text2);font-size:13px">No videos yet</em>'; return; }
+    el.innerHTML = videos.map(v => `
+      <div class="item-row">
+        <div>
+          <div class="item-name">${v.title}</div>
+          <div class="item-meta">${v.youtube_url}</div>
+        </div>
+        <button class="btn btn-danger" onclick="deleteVideo('${v.id}')">Remove</button>
+      </div>`).join('');
+  }
+  async function addVideo() {
+    const title = document.getElementById('v-title').value.trim();
+    const youtube_url = document.getElementById('v-url').value.trim();
+    const duration = document.getElementById('v-dur').value.trim();
+    if (!title || !youtube_url) { toast('Title and URL required', true); return; }
+    await db.post('videos', { title, youtube_url, duration });
+    toast(`"${title}" added!`);
+    ['v-title','v-url','v-dur'].forEach(id => document.getElementById(id).value = '');
+    loadVideoList();
+  }
+  async function deleteVideo(id) {
+    if (!confirm('Remove this video?')) return;
+    await db.del('videos', id);
+    toast('Video removed');
+    loadVideoList();
+  }
+
+  // INIT
+  populateSelects();
+  loadDriverList();
+  loadRaceList();
+  loadRecordList();
+  loadVideoList();
+</script>
+</body>
+</html>
