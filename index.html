@@ -688,16 +688,27 @@ async function loadDrivers() {
   const g = document.getElementById('driver-grid');
   if(!d.length){g.innerHTML='<div class="empty">No drivers yet</div>';return;}
   g.innerHTML=d.map((dr,i)=>{
-    const isNolan = dr.name==='Nolan McKim' && dr.number==='7';
+    // Custom number image map: driver name -> {file, width, blend}
+    const customNums = {
+      'Nolan McKim':  { src:'nolan7.png',     w:52, blend:'lighten' },
+      'Eric Peek':    { src:'eric11.png',      w:58, blend:'lighten' },
+      'Goose':        { src:'goose76.png',     w:58, blend:'lighten' },
+      'Connerz':      { src:'connerz72.png',   w:58, blend:'lighten' },
+      'T Dirt':       { src:'tdirt418.png',    w:64, blend:'lighten' },
+      'Mad Mike':     { src:'madmike28.png',   w:58, blend:'lighten' },
+      'Tonka Tim':    { src:'tonkatim61.png',  w:58, blend:'lighten' },
+      'Miller Lite':  { src:'millerlite13.png',w:58, blend:'lighten' },
+      'Bowen':        { src:'bowen19.png',     w:52, blend:'lighten' },
+      'Zack':         { src:'zack30.png',      w:58, blend:'lighten' },
+      'Tony Miletich':{ src:'tony22.png',      w:58, blend:'lighten' },
+    };
+    const isNolan = dr.name==='Nolan McKim';
     const isEric = dr.name==='Eric Peek';
-    const isGoose = dr.name==='Goose' && dr.number==='76';
+    const isGoose = dr.name==='Goose';
     const isMailbox = dr.name==='Newt' || dr.name==='Bubba Hayes';
-    const numEl = isNolan
-      ? `<img src="nolan7.png" alt="7" style="width:52px;height:52px;object-fit:contain;mix-blend-mode:lighten;flex-shrink:0;">`
-      : isEric
-      ? `<img src="eric11.png" alt="11" style="width:56px;height:52px;object-fit:contain;mix-blend-mode:lighten;flex-shrink:0;">`
-      : isGoose
-      ? `<img src="goose76.png" alt="76" style="width:56px;height:52px;object-fit:contain;mix-blend-mode:lighten;flex-shrink:0;">`
+    const customNum = customNums[dr.name];
+    const numEl = customNum
+      ? `<img src="${customNum.src}" alt="${dr.number}" style="width:${customNum.w}px;height:52px;object-fit:contain;mix-blend-mode:${customNum.blend};flex-shrink:0;">`
       : isMailbox
       ? `<div style="flex-shrink:0;display:flex;gap:3px;align-items:center;justify-content:center;">
            ${dr.number.toString().split('').map(digit => `
@@ -723,12 +734,21 @@ async function loadDrivers() {
              </div>`).join('')}
          </div>`
       : `<div class="d-num" style="color:${dr.color||'#F26419'}">${dr.number}</div>`;
-    const nameEl = isNolan
-      ? `<div class="d-name"><span style="color:#F4922A">Nolan</span> <span style="color:#2E8B2E">McKim</span></div>`
-      : isEric
-      ? `<div class="d-name"><span style="color:#4EB3E8">Eric</span> <span style="color:#CC5500">Peek</span></div>`
-      : isGoose
-      ? `<div class="d-name"><span style="color:#9B30C8">Goose</span></div>`
+    const nameColors = {
+      'Nolan McKim':   `<span style="color:#F4922A">Nolan</span> <span style="color:#2E8B2E">McKim</span>`,
+      'Eric Peek':     `<span style="color:#4EB3E8">Eric</span> <span style="color:#CC5500">Peek</span>`,
+      'Goose':         `<span style="color:#9B30C8">Goose</span>`,
+      'Connerz':       `<span style="color:#fff">Connerz</span>`,
+      'T Dirt':        `<span style="color:#F5C800">T</span> <span style="color:#4A9EE0">Dirt</span>`,
+      'Mad Mike':      `<span style="color:#fff">Mad</span> <span style="color:#F26419">Mike</span>`,
+      'Tonka Tim':     `<span style="color:#ccc">Tonka</span> <span style="color:#F5E642">Tim</span>`,
+      'Miller Lite':   `<span style="color:#C8922A">Miller</span> <span style="color:#2E7A3A">Lite</span>`,
+      'Bowen':         `<span style="color:#fff">Bowen</span>`,
+      'Zack':          `<span style="color:#fff">Zack</span>`,
+      'Tony Miletich': `<span style="color:#E83333">Tony</span> <span style="color:#fff">Miletich</span>`,
+    };
+    const nameEl = nameColors[dr.name]
+      ? `<div class="d-name">${nameColors[dr.name]}</div>`
       : isMailbox
       ? `<div class="d-name"><span style="color:#D4A800">${dr.name}</span></div>`
       : `<div class="d-name">${dr.name}</div>`;
@@ -881,19 +901,21 @@ async function loadWeather() {
     const d = await res.json();
     if (!res.ok) throw new Error(d.message);
 
-    const tempF     = Math.round(d.main.temp);
-    const feelsF    = Math.round(d.main.feels_like);
-    const humidity  = d.main.humidity;
-    const pressHpa  = d.main.pressure;
-    const pressinHg = (pressHpa * 0.02953).toFixed(2);
-    const windMph   = Math.round(d.wind.speed);
-    const windDir   = d.wind.deg;
-    const vis       = d.visibility ? Math.round(d.visibility / 1609.34) : '—';
-    const condition = d.weather[0].description;
-    const clouds    = d.clouds?.all ?? '—';
-    const dp        = Math.round(dewpoint(tempF, humidity));
-    const da        = calcDensityAltitude(tempF, dp, pressHpa);
-    const rating    = getDARating(da);
+    const tempF        = Math.round(d.main.temp);
+    const feelsF       = Math.round(d.main.feels_like);
+    const humidity     = d.main.humidity;
+    const seaLevelHpa  = d.main.pressure;           // sea-level corrected (display only)
+    const stationHpa   = d.main.grnd_level || d.main.pressure; // station/ground pressure for DA
+    const pressinHg    = (stationHpa * 0.02953).toFixed(2);
+    const windMph      = Math.round(d.wind.speed);
+    const windDir      = d.wind.deg;
+    const vis          = d.visibility ? Math.round(d.visibility / 1609.34) : '—';
+    const condition    = d.weather[0].description;
+    const clouds       = d.clouds?.all ?? '—';
+    const dp           = Math.round(dewpoint(tempF, humidity));
+    const da           = calcDensityAltitude(tempF, dp, stationHpa); // use station pressure
+    const rating       = getDARating(da);
+    const hasStation   = !!d.main.grnd_level;
 
     const windDirs  = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
     const windCardinal = windDirs[Math.round(windDir / 22.5) % 16];
@@ -942,8 +964,8 @@ async function loadWeather() {
         <div class="wx-card">
           <div class="wx-icon">📊</div>
           <div class="wx-val" style="font-size:24px">${pressinHg}</div>
-          <div class="wx-lbl">Pressure inHg</div>
-          <div class="wx-sub">${pressHpa} hPa</div>
+          <div class="wx-lbl">Station Pressure</div>
+          <div class="wx-sub">${stationHpa} hPa${hasStation ? '' : ' (est)'}<br><span style="opacity:0.6;font-size:10px">Sea level: ${seaLevelHpa} hPa</span></div>
         </div>
       </div>
 
@@ -969,6 +991,7 @@ async function loadWeather() {
       <div class="da-explain">
         <h3>What is Density Altitude?</h3>
         <p>Density altitude is the effective altitude your engine thinks it's at based on temp, humidity, and pressure. <strong style="color:var(--text)">Lower DA = denser air = more oxygen = more power.</strong> Higher DA means thinner air and slower lap times. On a hot, humid day the DA can be thousands of feet higher than your actual elevation — your Predator feels it.</p>
+        <p style="margin-top:8px;color:var(--orange)">Using station (ground-level) pressure for DA calculation — not sea-level corrected — for maximum accuracy.</p>
       </div>`;
   } catch(err) {
     el.innerHTML = `<div class="wx-loading">Could not load weather — check connection<br><span style="font-size:11px;opacity:0.5">${err.message}</span></div>`;
