@@ -294,6 +294,11 @@
     <div class="success-icon">🏁</div>
     <div class="success-title" id="success-title">Profile Saved!</div>
     <div class="success-sub" id="success-sub">Your profile is live on the YardKartz drivers page.</div>
+    <div id="next-race-block" style="display:none;margin-top:32px;background:var(--asphalt-mid);border:1px solid var(--bdr);border-top:3px solid var(--orange);border-radius:12px;padding:24px 28px;max-width:380px;margin-left:auto;margin-right:auto;text-align:center;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:var(--orange);margin-bottom:10px;">You're all set! See you at the next race —</div>
+      <div id="next-race-date" style="font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:900;color:var(--text);line-height:1;"></div>
+      <div id="next-race-name" style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-top:8px;"></div>
+    </div>
   </div>
 
 </main>
@@ -485,10 +490,24 @@
         throw new Error(err.message || 'Save failed');
       }
 
+      const nextRaces = await fetch(`${SURL}/rest/v1/races?status=eq.upcoming&order=race_date.asc&limit=1`, {
+        headers: { 'apikey': SKEY, 'Authorization': `Bearer ${SKEY}` }
+      }).then(r => r.json());
+
       document.getElementById('form-screen').style.display = 'none';
       document.getElementById('success-screen').style.display = 'block';
       document.getElementById('success-title').textContent = `Profile Saved, ${selectedDriver.name}!`;
       document.getElementById('success-sub').textContent = `#${selectedDriver.number} is now live on the YardKartz drivers page.`;
+
+      if (nextRaces && nextRaces[0]) {
+        const nr = nextRaces[0];
+        const d = new Date(nr.race_date + 'T12:00:00');
+        const formatted = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        document.getElementById('next-race-date').textContent = formatted;
+        document.getElementById('next-race-name').textContent = `R${nr.round} — ${nr.name}`;
+        document.getElementById('next-race-block').style.display = 'block';
+      }
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
     } catch (err) {
