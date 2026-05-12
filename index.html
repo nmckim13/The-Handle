@@ -1226,7 +1226,7 @@ async function showDriverProfile(id) {
     </div>
 
     ${dr.quote ? `<div class="prof-quote">"${dr.quote}"</div>` : ''}
-    ${dr.bio ? `<div class="prof-bio">${dr.bio}</div>` : ''}
+    ${dr.bio ? `<div class="sect-lbl" style="color:var(--orange);margin-bottom:8px">Straight from the Pits</div><div class="prof-bio">${dr.bio}</div>` : ''}
 
     ${equipFields.length ? `<div class="prof-sect">Equipment</div><div class="prof-kv-grid">${equipFields.join('')}</div>` : ''}
     ${profileFields.length ? `<div class="prof-sect">Driver Profile</div><div class="prof-kv-grid">${profileFields.join('')}</div>` : ''}
