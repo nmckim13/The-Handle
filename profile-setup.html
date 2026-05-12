@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driver Profile Setup — YardKartz</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --orange: #F26419; --yellow: #F7C948;
+    --asphalt: #0f0f0f; --asphalt-mid: #1a1a1a; --asphalt-light: #242424;
+    --bg: #111111; --bg2: #1a1a1a; --bg3: #222222;
+    --text: #f0f0f0; --text2: #777777;
+    --bdr: #2e2e2e; --bdr2: #444444;
+    --green: #2D8B45; --red: #C0392B;
+  }
+  body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  .site-header { background: var(--asphalt); border-bottom: 3px solid var(--orange); padding: 0 20px; position: relative; overflow: hidden; }
+  .header-kart { position: absolute; right: -10px; bottom: -8px; height: 110px; opacity: 0.15; pointer-events: none; mix-blend-mode: lighten; }
+  .header-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 14px; padding: 12px 0 10px; position: relative; z-index: 1; }
+  .header-logo { height: 56px; object-fit: contain; mix-blend-mode: lighten; }
+  .header-league { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--orange); margin-bottom: 2px; }
+  .header-sub { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: var(--text2); }
+  .header-badge { margin-left: auto; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--yellow); background: rgba(247,201,72,0.08); padding: 5px 12px; border-radius: 5px; border: 1px solid rgba(247,201,72,0.15); }
+
+  /* MAIN */
+  .page-main { max-width: 720px; margin: 0 auto; padding: 28px 20px 60px; }
+  .page-title { font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 900; text-transform: uppercase; color: var(--text); margin-bottom: 4px; }
+  .page-sub { font-size: 14px; color: var(--text2); margin-bottom: 28px; line-height: 1.5; }
+
+  /* CARDS */
+  .card { background: var(--asphalt-mid); border: 1px solid var(--bdr); border-radius: 12px; padding: 22px 24px; margin-bottom: 16px; }
+  .card-title { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--orange); margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--bdr); }
+
+  /* FORM ELEMENTS */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); }
+  input[type="text"], input[type="number"], select, textarea {
+    background: var(--asphalt-light); border: 1px solid var(--bdr); border-radius: 7px;
+    padding: 10px 14px; font-family: 'Barlow', sans-serif; font-size: 14px;
+    color: var(--text); width: 100%; transition: border-color 0.12s; appearance: none;
+  }
+  input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--orange);
+  }
+  input::placeholder, textarea::placeholder { color: var(--text2); }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23777' d='M6 8L0 0h12z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; cursor: pointer; }
+
+  /* RADIO GROUPS */
+  .radio-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+  .radio-option { position: relative; }
+  .radio-option input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; }
+  .radio-option label {
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    background: var(--asphalt-light); border: 1px solid var(--bdr);
+    border-radius: 6px; padding: 8px 14px; cursor: pointer;
+    color: var(--text2); transition: all 0.12s; white-space: nowrap;
+  }
+  .radio-option input[type="radio"]:checked + label {
+    background: rgba(242,100,25,0.15); border-color: var(--orange); color: var(--orange);
+  }
+  .radio-option label:hover { border-color: var(--bdr2); color: var(--text); }
+
+  /* PHOTO UPLOAD */
+  .photo-upload-area {
+    border: 2px dashed var(--bdr); border-radius: 10px; padding: 28px 20px;
+    text-align: center; cursor: pointer; transition: border-color 0.15s;
+    background: var(--asphalt-light); position: relative;
+  }
+  .photo-upload-area:hover, .photo-upload-area.dragover { border-color: var(--orange); }
+  .photo-upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-label { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); }
+  .upload-hint { font-size: 12px; color: var(--text2); margin-top: 4px; opacity: 0.7; }
+  .photo-preview { display: none; width: 100%; max-width: 200px; margin: 0 auto; border-radius: 8px; overflow: hidden; }
+  .photo-preview img { width: 100%; height: 180px; object-fit: cover; object-position: top; border-radius: 8px; border: 1px solid var(--bdr); }
+  .photo-preview .change-photo { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); margin-top: 8px; cursor: pointer; }
+  .upload-progress { height: 3px; background: var(--bdr); border-radius: 2px; margin-top: 10px; overflow: hidden; display: none; }
+  .upload-progress-bar { height: 100%; background: var(--orange); border-radius: 2px; width: 0%; transition: width 0.3s; }
+
+  /* DRIVER SELECT HERO */
+  .driver-select-hero { background: var(--asphalt-mid); border: 2px solid var(--orange); border-radius: 12px; padding: 22px 24px; margin-bottom: 16px; }
+  .driver-select-hero label { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--orange); display: block; margin-bottom: 10px; }
+  .driver-select-hero select { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; }
+
+  /* SUBMIT */
+  .submit-btn {
+    width: 100%; padding: 16px; font-family: 'Barlow Condensed', sans-serif;
+    font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;
+    background: var(--orange); color: #fff; border: none; border-radius: 10px;
+    cursor: pointer; transition: background 0.12s; margin-top: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .submit-btn:hover { background: #d4551a; }
+  .submit-btn:disabled { background: var(--bdr2); color: var(--text2); cursor: not-allowed; }
+  .submit-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* SUCCESS */
+  .success-screen { display: none; text-align: center; padding: 60px 20px; }
+  .success-icon { font-size: 64px; margin-bottom: 16px; }
+  .success-title { font-family: 'Barlow Condensed', sans-serif; font-size: 36px; font-weight: 900; text-transform: uppercase; color: var(--orange); margin-bottom: 8px; }
+  .success-sub { font-size: 15px; color: var(--text2); line-height: 1.6; }
+  .success-back { display: inline-block; margin-top: 24px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--orange); text-decoration: none; border: 1px solid var(--orange); border-radius: 7px; padding: 10px 22px; transition: all 0.12s; }
+  .success-back:hover { background: var(--orange); color: #fff; }
+
+  /* ERROR */
+  .field-error { font-size: 12px; color: #e74c3c; margin-top: 3px; display: none; }
+
+  /* FORM SECTION HIDDEN UNTIL DRIVER SELECTED */
+  .form-sections { display: none; }
+
+  @media(max-width:600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+    .radio-group { flex-direction: column; }
+    .radio-option label { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <img class="header-kart" src="kart.jpg" alt="">
+  <div class="header-inner">
+    <img class="header-logo" src="logo.jpg" alt="YardKartz">
+    <div>
+      <div class="header-league">2026 Stock Predator Championship</div>
+      <div class="header-sub">The Handle · Westville, IN</div>
+    </div>
+    <div class="header-badge">Driver Setup</div>
+  </div>
+</header>
+
+<main class="page-main">
+
+  <div id="form-screen">
+    <div class="page-title">Driver Profile Setup</div>
+    <p class="page-sub">Fill out your profile — it'll show up on the Drivers page on the YardKartz site. Select your name to get started.</p>
+
+    <div class="driver-select-hero">
+      <label for="driver-select">Who are you?</label>
+      <select id="driver-select" onchange="onDriverSelect()">
+        <option value="">Select your name...</option>
+      </select>
+    </div>
+
+    <div class="form-sections" id="form-sections">
+
+      <!-- IDENTITY -->
+      <div class="card">
+        <div class="card-title">Identity</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="f-name" placeholder="Your name" readonly style="opacity:0.6;cursor:not-allowed">
+          </div>
+          <div class="form-group">
+            <label>Nickname / Callsign</label>
+            <input type="text" id="f-nickname" placeholder="The Iceman">
+          </div>
+          <div class="form-group">
+            <label>Age</label>
+            <input type="number" id="f-age" placeholder="34" min="16" max="99">
+          </div>
+          <div class="form-group">
+            <label>Hometown</label>
+            <input type="text" id="f-hometown" placeholder="Westville, IN">
+          </div>
+          <div class="form-group full">
+            <label>Occupation</label>
+            <input type="text" id="f-occupation" placeholder="Welder / Farmer / Professional Menace">
+          </div>
+        </div>
+      </div>
+
+      <!-- EQUIPMENT -->
+      <div class="card">
+        <div class="card-title">Equipment</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Kart Make / Model</label>
+            <input type="text" id="f-kart_make" placeholder="2022 CRG Road Rebel">
+          </div>
+          <div class="form-group">
+            <label>Kart Colors</label>
+            <input type="text" id="f-kart_colors" placeholder="Black &amp; Orange">
+          </div>
+          <div class="form-group full">
+            <label>Sponsor</label>
+            <input type="text" id="f-sponsor" placeholder="Self-sponsored / My wife's patience / etc.">
+          </div>
+        </div>
+      </div>
+
+      <!-- PERSONALITY -->
+      <div class="card">
+        <div class="card-title">Driver Profile</div>
+        <div class="form-grid">
+
+          <div class="form-group full">
+            <label>Favorite Track Condition</label>
+            <div class="radio-group" id="rg-condition">
+              <div class="radio-option"><input type="radio" name="fav_condition" id="fc-dry" value="Dry Slick"><label for="fc-dry">Dry Slick</label></div>
+              <div class="radio-option"><input type="radio" name="fav_condition" id="fc-tacky" value="Tacky"><label for="fc-tacky">Tacky</label></div>
+              <div class="radio-option"><input type="radio" name="fav_condition" id="fc-wet" value="Wet"><label for="fc-wet">Wet</label></div>
+              <div class="radio-option"><input type="radio" name="fav_condition" id="fc-whatever" value="Whatever I can get"><label for="fc-whatever">Whatever I can get</label></div>
+            </div>
+          </div>
+
+          <div class="form-group full">
+            <label>Racing Style</label>
+            <div class="radio-group" id="rg-style">
+              <div class="radio-option"><input type="radio" name="racing_style" id="rs-agg" value="Aggressive"><label for="rs-agg">Aggressive</label></div>
+              <div class="radio-option"><input type="radio" name="racing_style" id="rs-smooth" value="Smooth"><label for="rs-smooth">Smooth</label></div>
+              <div class="radio-option"><input type="radio" name="racing_style" id="rs-strat" value="Strategic"><label for="rs-strat">Strategic</label></div>
+              <div class="radio-option"><input type="radio" name="racing_style" id="rs-unpred" value="Unpredictable"><label for="rs-unpred">Unpredictable</label></div>
+            </div>
+          </div>
+
+          <div class="form-group full">
+            <label>Pre-Race Ritual</label>
+            <textarea id="f-pre_race_ritual" placeholder="Two Red Bulls and a prayer..."></textarea>
+          </div>
+
+          <div class="form-group full">
+            <label>Biggest Rival</label>
+            <select id="f-biggest_rival">
+              <option value="">None (I'm unbeatable)</option>
+            </select>
+          </div>
+
+          <div class="form-group full">
+            <label>Career Highlight Moment</label>
+            <textarea id="f-career_highlight" placeholder="That one time you pulled off the impossible pass..."></textarea>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BIO & QUOTE -->
+      <div class="card">
+        <div class="card-title">Your Story</div>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Short Bio</label>
+            <textarea id="f-bio" placeholder="2–3 sentences about yourself as a racer. What brought you to The Handle? What do you race for?" style="min-height:100px;"></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Favorite Quote</label>
+            <textarea id="f-quote" placeholder="Your go-to quote — racing, life, or otherwise."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHOTO -->
+      <div class="card">
+        <div class="card-title">Profile Photo</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6">Upload a photo that'll appear on your driver card. A good kart photo or helmet shot works great. Square or portrait crops look best.</p>
+        <div class="photo-upload-area" id="upload-area">
+          <input type="file" id="f-photo" accept="image/jpeg,image/png,image/webp" onchange="onPhotoSelected(this)">
+          <div id="upload-placeholder">
+            <div class="upload-icon">📸</div>
+            <div class="upload-label">Tap to choose a photo</div>
+            <div class="upload-hint">JPG, PNG, or WEBP · Max 5MB</div>
+          </div>
+          <div class="photo-preview" id="photo-preview">
+            <img id="preview-img" src="" alt="Preview">
+            <div class="change-photo">↑ Tap to change</div>
+          </div>
+        </div>
+        <div class="upload-progress" id="upload-progress">
+          <div class="upload-progress-bar" id="upload-bar"></div>
+        </div>
+      </div>
+
+      <button class="submit-btn" id="submit-btn" onclick="submitProfile()">
+        <div class="submit-spinner" id="submit-spinner"></div>
+        <span id="submit-label">Save My Profile</span>
+      </button>
+
+    </div><!-- end form-sections -->
+  </div><!-- end form-screen -->
+
+  <div class="success-screen" id="success-screen">
+    <div class="success-icon">🏁</div>
+    <div class="success-title" id="success-title">Profile Saved!</div>
+    <div class="success-sub" id="success-sub">Your profile is live on the YardKartz drivers page.</div>
+    <a href="/" class="success-back">← Back to YardKartz</a>
+  </div>
+
+</main>
+
+<script>
+  const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
+  const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
+
+  let selectedDriver = null;
+  let allDrivers = [];
+
+  async function init() {
+    const res = await fetch(`${SURL}/rest/v1/drivers?select=*&order=name.asc`, {
+      headers: { 'apikey': SKEY, 'Authorization': `Bearer ${SKEY}` }
+    });
+    allDrivers = await res.json();
+
+    const sel = document.getElementById('driver-select');
+    allDrivers.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${d.name} (#${d.number})`;
+      sel.appendChild(opt);
+    });
+
+    const rival = document.getElementById('f-biggest_rival');
+    allDrivers.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.name;
+      opt.textContent = `${d.name} (#${d.number})`;
+      rival.appendChild(opt);
+    });
+  }
+
+  function onDriverSelect() {
+    const id = document.getElementById('driver-select').value;
+    if (!id) {
+      document.getElementById('form-sections').style.display = 'none';
+      selectedDriver = null;
+      return;
+    }
+    selectedDriver = allDrivers.find(d => d.id === id);
+    if (!selectedDriver) return;
+
+    document.getElementById('f-name').value = selectedDriver.name;
+    document.getElementById('f-nickname').value = selectedDriver.nickname || '';
+    document.getElementById('f-age').value = selectedDriver.age || '';
+    document.getElementById('f-hometown').value = selectedDriver.hometown || '';
+    document.getElementById('f-occupation').value = selectedDriver.occupation || '';
+    document.getElementById('f-kart_make').value = selectedDriver.kart_make || '';
+    document.getElementById('f-kart_colors').value = selectedDriver.kart_colors || '';
+    document.getElementById('f-sponsor').value = selectedDriver.sponsor || '';
+    document.getElementById('f-pre_race_ritual').value = selectedDriver.pre_race_ritual || '';
+    document.getElementById('f-biggest_rival').value = selectedDriver.biggest_rival || '';
+    document.getElementById('f-career_highlight').value = selectedDriver.career_highlight || '';
+    document.getElementById('f-bio').value = selectedDriver.bio || '';
+    document.getElementById('f-quote').value = selectedDriver.quote || '';
+
+    if (selectedDriver.fav_condition) {
+      const radio = document.querySelector(`input[name="fav_condition"][value="${selectedDriver.fav_condition}"]`);
+      if (radio) radio.checked = true;
+    }
+    if (selectedDriver.racing_style) {
+      const radio = document.querySelector(`input[name="racing_style"][value="${selectedDriver.racing_style}"]`);
+      if (radio) radio.checked = true;
+    }
+
+    if (selectedDriver.photo_url) {
+      document.getElementById('preview-img').src = selectedDriver.photo_url;
+      document.getElementById('upload-placeholder').style.display = 'none';
+      document.getElementById('photo-preview').style.display = 'block';
+    } else {
+      document.getElementById('upload-placeholder').style.display = 'block';
+      document.getElementById('photo-preview').style.display = 'none';
+    }
+
+    document.getElementById('form-sections').style.display = 'block';
+    setTimeout(() => document.getElementById('form-sections').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  }
+
+  function onPhotoSelected(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Photo must be under 5MB');
+      input.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('preview-img').src = e.target.result;
+      document.getElementById('upload-placeholder').style.display = 'none';
+      document.getElementById('photo-preview').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Drag-over highlight
+  const ua = document.getElementById('upload-area');
+  ua.addEventListener('dragover', e => { e.preventDefault(); ua.classList.add('dragover'); });
+  ua.addEventListener('dragleave', () => ua.classList.remove('dragover'));
+  ua.addEventListener('drop', e => {
+    e.preventDefault();
+    ua.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      document.getElementById('f-photo').files = dt.files;
+      onPhotoSelected(document.getElementById('f-photo'));
+    }
+  });
+
+  async function uploadPhoto(file, driverId) {
+    const ext = file.name.split('.').pop().toLowerCase() || 'jpg';
+    const filename = `${driverId}_${Date.now()}.${ext}`;
+    document.getElementById('upload-progress').style.display = 'block';
+    document.getElementById('upload-bar').style.width = '30%';
+
+    const res = await fetch(`${SURL}/storage/v1/object/driver-photos/${filename}`, {
+      method: 'POST',
+      headers: {
+        'apikey': SKEY,
+        'Authorization': `Bearer ${SKEY}`,
+        'Content-Type': file.type || 'image/jpeg',
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+
+    document.getElementById('upload-bar').style.width = '90%';
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Photo upload failed');
+    }
+
+    document.getElementById('upload-bar').style.width = '100%';
+    return `${SURL}/storage/v1/object/public/driver-photos/${filename}`;
+  }
+
+  async function submitProfile() {
+    if (!selectedDriver) return;
+
+    const btn = document.getElementById('submit-btn');
+    const spinner = document.getElementById('submit-spinner');
+    const label = document.getElementById('submit-label');
+    btn.disabled = true;
+    spinner.style.display = 'block';
+    label.textContent = 'Saving...';
+
+    try {
+      const data = {
+        nickname:        document.getElementById('f-nickname').value.trim() || null,
+        age:             parseInt(document.getElementById('f-age').value) || null,
+        hometown:        document.getElementById('f-hometown').value.trim() || null,
+        occupation:      document.getElementById('f-occupation').value.trim() || null,
+        kart_make:       document.getElementById('f-kart_make').value.trim() || null,
+        kart_colors:     document.getElementById('f-kart_colors').value.trim() || null,
+        sponsor:         document.getElementById('f-sponsor').value.trim() || null,
+        fav_condition:   (document.querySelector('input[name="fav_condition"]:checked') || {}).value || null,
+        racing_style:    (document.querySelector('input[name="racing_style"]:checked') || {}).value || null,
+        pre_race_ritual: document.getElementById('f-pre_race_ritual').value.trim() || null,
+        biggest_rival:   document.getElementById('f-biggest_rival').value || null,
+        career_highlight:document.getElementById('f-career_highlight').value.trim() || null,
+        bio:             document.getElementById('f-bio').value.trim() || null,
+        quote:           document.getElementById('f-quote').value.trim() || null,
+      };
+
+      const photoInput = document.getElementById('f-photo');
+      if (photoInput.files.length > 0) {
+        label.textContent = 'Uploading photo...';
+        data.photo_url = await uploadPhoto(photoInput.files[0], selectedDriver.id);
+      }
+
+      const res = await fetch(`${SURL}/rest/v1/drivers?id=eq.${selectedDriver.id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SKEY,
+          'Authorization': `Bearer ${SKEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Save failed');
+      }
+
+      document.getElementById('form-screen').style.display = 'none';
+      document.getElementById('success-screen').style.display = 'block';
+      document.getElementById('success-title').textContent = `Profile Saved, ${selectedDriver.name}!`;
+      document.getElementById('success-sub').textContent = `#${selectedDriver.number} is now live on the YardKartz drivers page.`;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    } catch (err) {
+      alert('Error: ' + err.message);
+      btn.disabled = false;
+      spinner.style.display = 'none';
+      label.textContent = 'Save My Profile';
+      document.getElementById('upload-progress').style.display = 'none';
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>
