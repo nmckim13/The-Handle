@@ -811,32 +811,7 @@ async function loadDrivers() {
              </div>`).join('')}
          </div>`
       : `<div class="d-num" style="color:${dr.color||'#F26419'}">${dr.number}</div>`;
-    const nameColors = {
-      'Nolan McKim':   `<span style="color:#F4922A">Nolan</span> <span style="color:#2E8B2E">McKim</span>`,
-      'Eric Peek':     `<span style="color:#4EB3E8">Eric</span> <span style="color:#CC5500">Peek</span>`,
-      'Goose':         `<span style="color:#9B30C8">Goose</span>`,
-      'Connerz':       `<span style="color:#fff">Connerz</span>`,
-      'T Dirt':        `<span style="color:#F5C800">T</span> <span style="color:#4A9EE0">Dirt</span>`,
-      'Mike Miller':   `<span style="color:#fff">Mike</span> <span style="color:#F26419">Miller</span>`,
-      'Tonka Tim':     `<span style="color:#ccc">Tonka</span> <span style="color:#F5E642">Tim</span>`,
-      'Miller Lite':   `<span style="color:#C8922A">Miller</span> <span style="color:#2E7A3A">Lite</span>`,
-      'Bowen':         `<span style="color:#5BB8E8">Bowen</span>`,
-      'Zack':          `<span style="color:#fff">Zack</span>`,
-      'Tony Miletich': `<span style="color:#E83333">Tony</span> <span style="color:#fff">Miletich</span>`,
-      'Buiscut':       `<span style="color:#ccc">Buiscut</span>`,
-      'East Gary':     `<span style="color:#fff">East</span> <span style="color:#F5E642">Gary</span>`,
-      'Ronnie':        `<span style="color:#4A9EE0">Ronnie</span>`,
-      'Arthur Walstra':`<span style="color:#E85A1A">Arthur</span> <span style="color:#fff">Walstra</span>`,
-      'Shawn Toczak':  `<span style="color:#F5C800">Shawn</span> <span style="color:#F26419">Toczak</span>`,
-      'Cole':          `<span style="color:#9B30C8">Cole</span>`,
-      'John Nimentz':  `<span style="color:#fff">John</span> <span style="color:#CC2222">Nimentz</span>`,
-      'Royce':         `<span style="color:#F26419">Royce</span>`,
-    };
-    const nameEl = nameColors[dr.name.trim()]
-      ? `<div class="d-name">${nameColors[dr.name]}</div>`
-      : isMailbox
-      ? `<div class="d-name"><span style="color:#D4A800">${dr.name}</span></div>`
-      : `<div class="d-name">${dr.name}</div>`;
+    const nameEl = `<div class="d-name">${dr.name}</div>`;
     return `<div class="driver-card" onclick="showDriverProfile('${dr.id}')">${numEl}<div>${nameEl}<div class="d-meta">${dr.wins} win${dr.wins!==1?'s':''} · ${dr.starts} start${dr.starts!==1?'s':''}</div><div class="d-badge${i===0&&dr.wins>0?' hot':''}">${i===0&&dr.wins>0?'Points leader':`P${i+1}`}</div></div></div>`;
   }).join('');
 }
