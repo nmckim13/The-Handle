@@ -777,6 +777,10 @@ async function loadDrivers() {
       'East Gary':     { src:'eastgary88.png',   w:64, blend:'lighten' },
       'Ronnie':        { src:'ronnie09.png',     w:64, blend:'normal' },
       'Arthur Walstra':{ src:'arthur3.png',      w:52, blend:'normal' },
+      'Shawn Toczak':  { src:'shawn65.png',      w:58, blend:'normal' },
+      'Cole':          { src:'cole96.png',        w:64, blend:'normal' },
+      'John Nimentz':  { src:'john29.png',        w:58, blend:'normal' },
+      'Royce':         { src:'royce77.png',       w:64, blend:'lighten' },
     };
     const isMailbox = dr.name==='Newt' || dr.name==='Bubba Hayes';
     const customNum = customNums[dr.name.trim()];
@@ -823,6 +827,10 @@ async function loadDrivers() {
       'East Gary':     `<span style="color:#fff">East</span> <span style="color:#F5E642">Gary</span>`,
       'Ronnie':        `<span style="color:#4A9EE0">Ronnie</span>`,
       'Arthur Walstra':`<span style="color:#E85A1A">Arthur</span> <span style="color:#fff">Walstra</span>`,
+      'Shawn Toczak':  `<span style="color:#F5C800">Shawn</span> <span style="color:#F26419">Toczak</span>`,
+      'Cole':          `<span style="color:#9B30C8">Cole</span>`,
+      'John Nimentz':  `<span style="color:#fff">John</span> <span style="color:#CC2222">Nimentz</span>`,
+      'Royce':         `<span style="color:#F26419">Royce</span>`,
     };
     const nameEl = nameColors[dr.name.trim()]
       ? `<div class="d-name">${nameColors[dr.name]}</div>`
@@ -1136,6 +1144,10 @@ const CUSTOM_NUMS = {
   'East Gary':     { src:'eastgary88.png',   w:120, blend:'lighten' },
   'Ronnie':        { src:'ronnie09.png',     w:120, blend:'normal' },
   'Arthur Walstra':{ src:'arthur3.png',      w:100, blend:'normal' },
+  'Shawn Toczak':  { src:'shawn65.png',      w:110, blend:'normal' },
+  'Cole':          { src:'cole96.png',        w:120, blend:'normal' },
+  'John Nimentz':  { src:'john29.png',        w:110, blend:'normal' },
+  'Royce':         { src:'royce77.png',       w:120, blend:'lighten' },
 };
 
 async function showDriverProfile(id) {
