@@ -703,6 +703,16 @@ const get = async (table, q='') => {
   return r.json();
 };
 
+function calcAge(birthday) {
+  if (!birthday) return null;
+  const today = new Date();
+  const dob = new Date(birthday);
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  return age;
+}
+
 function showPage(id, btn) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-inner button').forEach(b=>b.classList.remove('active'));
@@ -1209,7 +1219,7 @@ async function showDriverProfile(id) {
         <div class="prof-name">${dr.name}</div>
         ${dr.nickname ? `<div class="prof-nickname">"${dr.nickname}"</div>` : ''}
         <div class="prof-meta">
-          ${[dr.hometown, dr.age ? `Age ${dr.age}` : '', dr.occupation].filter(Boolean).join(' · ')}
+          ${[dr.hometown, calcAge(dr.birthday) ? `Age ${calcAge(dr.birthday)}` : '', dr.occupation].filter(Boolean).join(' · ')}
         </div>
       </div>
     </div>

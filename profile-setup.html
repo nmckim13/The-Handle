@@ -168,8 +168,8 @@
             <input type="text" id="f-nickname" placeholder="The Iceman">
           </div>
           <div class="form-group">
-            <label>Age</label>
-            <input type="number" id="f-age" placeholder="34" min="16" max="99">
+            <label>Birthday</label>
+            <input type="date" id="f-birthday">
           </div>
           <div class="form-group">
             <label>Hometown</label>
@@ -345,7 +345,7 @@
 
     document.getElementById('f-name').value = selectedDriver.name;
     document.getElementById('f-nickname').value = selectedDriver.nickname || '';
-    document.getElementById('f-age').value = selectedDriver.age || '';
+    document.getElementById('f-birthday').value = selectedDriver.birthday || '';
     document.getElementById('f-hometown').value = selectedDriver.hometown || '';
     document.getElementById('f-occupation').value = selectedDriver.occupation || '';
     document.getElementById('f-kart_make').value = selectedDriver.kart_make || '';
@@ -453,7 +453,7 @@
     try {
       const data = {
         nickname:        document.getElementById('f-nickname').value.trim() || null,
-        age:             parseInt(document.getElementById('f-age').value) || null,
+        birthday:        document.getElementById('f-birthday').value || null,
         hometown:        document.getElementById('f-hometown').value.trim() || null,
         occupation:      document.getElementById('f-occupation').value.trim() || null,
         kart_make:       document.getElementById('f-kart_make').value.trim() || null,
