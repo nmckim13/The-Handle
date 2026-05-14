@@ -823,7 +823,7 @@ async function loadDrivers() {
          </div>`
       : `<div class="d-num" style="color:${dr.color||'#F26419'}">${dr.number}</div>`;
     const nameEl = `<div class="d-name">${dr.name}</div>`;
-    return `<div class="driver-card" onclick="showDriverProfile('${dr.id}')">${numEl}<div>${nameEl}<div class="d-meta">${dr.wins} win${dr.wins!==1?'s':''} · ${dr.starts} start${dr.starts!==1?'s':''}</div><div class="d-badge${i===0&&dr.wins>0?' hot':''}">${i===0&&dr.wins>0?'Points leader':`P${i+1}`}</div></div></div>`;
+    return `<div class="driver-card" onclick="showDriverProfile('${dr.id}')">${numEl}<div>${nameEl}</div></div>`;
   }).join('');
 }
 
