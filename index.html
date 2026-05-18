@@ -768,32 +768,6 @@ async function loadHome() {
   const past = races.filter(r=>r.status==='past');
   document.getElementById('sc-races').textContent = past.length||'0';
 
-  const customNums = {
-    'Nolan McKim':    { src:'nolan7.png',       w:52, blend:'lighten' },
-    'Eric Peek':      { src:'eric11.png',        w:58, blend:'lighten' },
-    'Goose':          { src:'goose76.png',        w:58, blend:'lighten' },
-    'Connerz':        { src:'connerz72.png',      w:58, blend:'normal'  },
-    'T Dirt':         { src:'tdirt418.png',       w:64, blend:'lighten' },
-    'Mike Miller':    { src:'madmike28.png',      w:64, blend:'lighten' },
-    'Tonka Tim':      { src:'tonkatim61.png',     w:58, blend:'normal'  },
-    'Miller Lite':    { src:'millerlite13.png',   w:58, blend:'normal'  },
-    'Bowen':          { src:'bowen19.png',        w:58, blend:'lighten' },
-    'Zack':           { src:'zack30.png',         w:58, blend:'normal'  },
-    'Tony Miletich':  { src:'tony22.png',         w:58, blend:'normal'  },
-    'Buiscut':        { src:'buiscut54.png',      w:58, blend:'normal'  },
-    'East Gary':      { src:'eastgary88.png',     w:64, blend:'lighten' },
-    'Ronnie':         { src:'ronnie09.png',       w:64, blend:'normal'  },
-    'Arthur Walstra': { src:'arthur3.png',        w:52, blend:'normal'  },
-    'Shawn Toczek':   { src:'shawn65.png',        w:58, blend:'normal'  },
-    'Cole':           { src:'cole96.png',         w:64, blend:'normal'  },
-    'John Nimetz':    { src:'john29.png',         w:58, blend:'normal'  },
-    'Royce':          { src:'royce77.png',        w:64, blend:'lighten' },
-    'Maxzilla':       { src:'maxzilla56.png',     w:64, blend:'normal'  },
-    'Jordan Sculley': { src:'jordan23.png',       w:64, blend:'normal'  },
-    'Cole V':         { src:'colev25.png',        w:64, blend:'normal'  },
-    'Matthew Deyoung':{ src:'matthew51.png',      w:58, blend:'lighten' },
-  };
-
   // LEFT PANEL — last race winner
   const last = [...past].sort((a,b)=>new Date(b.race_date)-new Date(a.race_date))[0];
   const winEl = document.getElementById('home-winner');
@@ -801,10 +775,7 @@ async function loadHome() {
     const winResult = results.find(r => r.race_id === last.id && r.position === 1);
     const winDriver = winResult ? drivers.find(d => d.id === winResult.driver_id) : null;
     if (winDriver) {
-      const cn = customNums[winDriver.name.trim()];
-      const numEl = cn
-        ? `<img src="${cn.src}" alt="${winDriver.number}" style="max-height:70px;width:auto;object-fit:contain;mix-blend-mode:${cn.blend};display:block;margin-bottom:10px;">`
-        : `<div style="font-family:'Barlow Condensed',sans-serif;font-size:72px;font-weight:900;color:var(--orange);line-height:1;margin-bottom:10px">${winDriver.number}</div>`;
+      const numEl = `<div style="margin-bottom:10px;line-height:1;">${getDriverNumEl(winDriver.name.trim(), winDriver.number, 70)}</div>`;
       const ld = new Date(last.race_date+'T12:00:00');
       const lmo = ld.toLocaleString('en',{month:'long'}).toUpperCase();
       winEl.innerHTML = `
@@ -820,7 +791,7 @@ async function loadHome() {
     if (lr.length) {
       document.getElementById('lbl-results').style.display='block';
       document.getElementById('lbl-results').textContent=`Last race — R${last.round} ${last.name}`;
-      document.getElementById('home-results').innerHTML=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:50px">Pos</th><th>Driver</th><th>Lap Time</th></tr></thead><tbody>${lr.map((r,i)=>`<tr><td><span class="${pc(i)}">${r.position}</span></td><td>${r.drivers?.name||'—'}</td><td><span class="laptime">${r.lap_time||'—'}</span></td></tr>`).join('')}</tbody></table></div>`;
+      document.getElementById('home-results').innerHTML=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:50px">Pos</th><th>Driver</th><th>Lap Time</th></tr></thead><tbody>${lr.map((r,i)=>`<tr><td><span class="${pc(i)}">${r.position}</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">${r.drivers?.name?getDriverNumEl(r.drivers.name,r.drivers.number,32):''}<span>${r.drivers?.name||'—'}</span></span></td><td><span class="laptime">${r.lap_time||'—'}</span></td></tr>`).join('')}</tbody></table></div>`;
     }
   } else {
     winEl.innerHTML = `<div class="hp-lbl">Last Race Winner</div><div style="color:var(--text2);font-size:14px;padding-top:12px">Season hasn't started</div>`;
@@ -859,7 +830,7 @@ async function loadHome() {
       const pts = pointsByDriver[topId];
       const wins = results.filter(r => r.driver_id === topId && r.position === 1).length;
       document.getElementById('lbl-leader').style.display='block';
-      document.getElementById('home-leader').innerHTML=`<div class="leader-card"><div class="leader-num">${top.number}</div><div><div class="leader-name">${top.name}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
+      document.getElementById('home-leader').innerHTML=`<div class="leader-card"><div class="leader-num">${getDriverNumEl(top.name, top.number, 56)}</div><div><div class="leader-name">${top.name}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
     }
   }
 }
@@ -869,37 +840,8 @@ async function loadDrivers() {
   const g = document.getElementById('driver-grid');
   if(!d.length){g.innerHTML='<div class="empty">No drivers yet</div>';return;}
   g.innerHTML=d.map((dr,i)=>{
-    // Custom number image map: driver name -> {file, width, blend}
-    const customNums = {
-      'Nolan McKim':   { src:'nolan7.png',      w:52, blend:'lighten' },
-      'Eric Peek':     { src:'eric11.png',       w:58, blend:'lighten' },
-      'Goose':         { src:'goose76.png',      w:58, blend:'lighten' },
-      'Connerz':       { src:'connerz72.png',    w:58, blend:'normal' },
-      'T Dirt':        { src:'tdirt418.png',     w:64, blend:'lighten' },
-      'Mike Miller':   { src:'madmike28.png',    w:64, blend:'lighten' },
-      'Tonka Tim':     { src:'tonkatim61.png',   w:58, blend:'normal' },
-      'Miller Lite':   { src:'millerlite13.png', w:58, blend:'normal' },
-      'Bowen':         { src:'bowen19.png',      w:58, blend:'lighten' },
-      'Zack':          { src:'zack30.png',       w:58, blend:'normal' },
-      'Tony Miletich': { src:'tony22.png',       w:58, blend:'normal' },
-      'Buiscut':       { src:'buiscut54.png',    w:58, blend:'normal' },
-      'East Gary':     { src:'eastgary88.png',   w:64, blend:'lighten' },
-      'Ronnie':        { src:'ronnie09.png',     w:64, blend:'normal' },
-      'Arthur Walstra':{ src:'arthur3.png',      w:52, blend:'normal' },
-      'Shawn Toczek':  { src:'shawn65.png',      w:58, blend:'normal' },
-      'Cole':          { src:'cole96.png',        w:64, blend:'normal' },
-      'John Nimetz':  { src:'john29.png',        w:58, blend:'normal' },
-      'Royce':         { src:'royce77.png',       w:64, blend:'lighten' },
-      'Maxzilla':      { src:'maxzilla56.png',    w:64, blend:'normal' },
-      'Jordan Sculley':{ src:'jordan23.png',      w:64, blend:'normal' },
-      'Cole V':        { src:'colev25.png',       w:64, blend:'normal' },
-      'Matthew Deyoung':{ src:'matthew51.png',    w:58, blend:'lighten' },
-    };
     const isMailbox = dr.name==='Newt' || dr.name==='Bubba Hayes';
-    const customNum = customNums[dr.name.trim()];
-    const numEl = customNum
-      ? `<img src="${customNum.src}" alt="${dr.number}" style="max-width:${customNum.w}px;max-height:56px;width:auto;height:auto;object-fit:contain;mix-blend-mode:${customNum.blend};flex-shrink:0;" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=d-num style=color:#F26419>'+dr.number+'</div>'">`
-      : isMailbox
+    const numEl = isMailbox
       ? `<div style="flex-shrink:0;display:flex;gap:3px;align-items:center;justify-content:center;">
            ${dr.number.toString().split('').map(digit => `
              <div style="
@@ -923,7 +865,7 @@ async function loadDrivers() {
                ">${digit}</span>
              </div>`).join('')}
          </div>`
-      : `<div class="d-num" style="color:${dr.color||'#F26419'}">${dr.number}</div>`;
+      : getDriverNumEl(dr.name.trim(), dr.number, 48);
     const nameEl = `<div class="d-name">${dr.name}</div>`;
     return `<div class="driver-card" onclick="showDriverProfile('${dr.id}')">${numEl}<div>${nameEl}</div></div>`;
   }).join('');
@@ -974,7 +916,7 @@ async function loadPoints() {
   tb.innerHTML = sorted.map((p,i) => {
     const bar = Math.max(14, Math.round(p.total / Math.max(max,1) * 110));
     const dim = p.total < max * 0.5 ? ' dim' : '';
-    return '<tr><td><span class="' + pc(i) + '">' + (i+1) + '</span></td><td>' + p.driver.name + '</td><td>' + p.wins + '</td><td><div class="pts-row"><div class="pts-bar' + dim + '" style="width:' + bar + 'px"></div><span class="pts-n">' + p.total + '</span></div></td></tr>';
+    return '<tr><td><span class="' + pc(i) + '">' + (i+1) + '</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">' + getDriverNumEl(p.driver.name, p.driver.number, 32) + '<span>' + p.driver.name + '</span></span></td><td>' + p.wins + '</td><td><div class="pts-row"><div class="pts-bar' + dim + '" style="width:' + bar + 'px"></div><span class="pts-n">' + p.total + '</span></div></td></tr>';
   }).join('');
 }
 
@@ -1009,12 +951,12 @@ function filterR(type,btn){
 }
 
 async function loadRecords(){
-  const recs=await get('lap_records','select=*,drivers(name),races(name,round)&order=lap_time_seconds.asc');
+  const recs=await get('lap_records','select=*,drivers(name,number),races(name,round)&order=lap_time_seconds.asc');
   const tb=document.getElementById('rec-body');
   if(!recs.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No lap times recorded yet</div></td></tr>';return;}
   tb.innerHTML=recs.map((r,i)=>{
     const d=r.set_date?new Date(r.set_date+'T12:00:00').toLocaleDateString('en',{month:'short',day:'numeric'}):'—';
-    return `<tr><td><span class="${pc(i)}">${i+1}</span></td><td>${r.drivers?.name||'—'}</td><td><span class="laptime">${r.lap_time_display}</span>${i===0?'<span class="rec-badge">Track Record</span>':''}</td><td>${d}</td><td>${r.races?`R${r.races.round}`:'—'}</td></tr>`;
+    return `<tr><td><span class="${pc(i)}">${i+1}</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">${r.drivers?.name?getDriverNumEl(r.drivers.name,r.drivers.number,32):''}<span>${r.drivers?.name||'—'}</span></span></td><td><span class="laptime">${r.lap_time_display}</span>${i===0?'<span class="rec-badge">Track Record</span>':''}</td><td>${d}</td><td>${r.races?`R${r.races.round}`:'—'}</td></tr>`;
   }).join('');
 }
 
@@ -1195,7 +1137,7 @@ async function toggleRaceResults(raceId, rowEl) {
     return;
   }
   resultsEl.querySelector('.race-results-inner').innerHTML = '<div class="rr-loading">Loading results...</div>';
-  const results = await get('results', 'select=*,drivers(name)&race_id=eq.'+raceId+'&order=position.asc');
+  const results = await get('results', 'select=*,drivers(name,number)&race_id=eq.'+raceId+'&order=position.asc');
   raceResultsCache[raceId] = results;
   renderRaceResultsInto(raceId, resultsEl.querySelector('.race-results-inner'));
 }
@@ -1205,7 +1147,7 @@ function renderRaceResultsInto(raceId, inner) {
   if (!results || !results.length) { inner.innerHTML = '<div class="rr-empty">No results recorded</div>'; return; }
   const rpc = p => p===1?'p1':p===2?'p2':p===3?'p3':'';
   inner.innerHTML = '<table class="rr-tbl"><thead><tr><th>Pos</th><th>Driver</th><th>Lap Time</th><th>Pts</th></tr></thead><tbody>'+
-    results.map(r=>'<tr><td><span class="rr-pos '+rpc(r.position)+'">'+r.position+'</span></td><td><span class="rr-name">'+(r.drivers?.name||'—')+'</span></td><td><span class="rr-time">'+(r.lap_time||'—')+'</span></td><td><span class="rr-pts">'+(r.points||'—')+'</span></td></tr>').join('')+
+    results.map(r=>'<tr><td><span class="rr-pos '+rpc(r.position)+'">'+r.position+'</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">'+(r.drivers?.name?getDriverNumEl(r.drivers.name,r.drivers.number,32):'')+'<span class="rr-name">'+(r.drivers?.name||'—')+'</span></span></td><td><span class="rr-time">'+(r.lap_time||'—')+'</span></td><td><span class="rr-pts">'+(r.points||'—')+'</span></td></tr>').join('')+
     '</tbody></table>';
 }
 
@@ -1241,6 +1183,14 @@ const CUSTOM_NUMS = {
   'Cole V':        { src:'colev25.png',       w:120, blend:'normal' },
   'Matthew Deyoung':{ src:'matthew51.png',    w:110, blend:'lighten' },
 };
+
+function getDriverNumEl(name, number, size=48) {
+  const custom = CUSTOM_NUMS[name];
+  if (custom) {
+    return `<img src="${custom.src}" alt="${number}" style="height:${size}px;width:auto;object-fit:contain;mix-blend-mode:${custom.blend};vertical-align:middle;">`;
+  }
+  return `<span style="font-family:'Barlow Condensed',sans-serif;font-size:${size}px;font-weight:900;color:#F26419;vertical-align:middle;">${number}</span>`;
+}
 
 async function showDriverProfile(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1289,10 +1239,7 @@ async function showDriverProfile(id) {
     .slice(0,10);
 
   // Number graphic
-  const cn = CUSTOM_NUMS[dr.name.trim()];
-  const numHtml = cn
-    ? `<img src="${cn.src}" alt="#${dr.number}" style="max-width:${cn.w}px;max-height:110px;width:auto;height:auto;object-fit:contain;mix-blend-mode:${cn.blend};">`
-    : `<div class="prof-num-text" style="color:${dr.color||'#F26419'}">${dr.number}</div>`;
+  const numHtml = getDriverNumEl(dr.name.trim(), dr.number, 90);
 
   const photoHtml = dr.photo_url
     ? `<img class="prof-photo" src="${dr.photo_url}" alt="${dr.name}" onerror="this.outerHTML='<div class=prof-photo-placeholder>🪖</div>'">`
