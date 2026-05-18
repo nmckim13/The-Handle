@@ -770,12 +770,20 @@ async function loadHome() {
     }
   }
 
-  if (drivers.length) {
-    const top = drivers[0];
-    const pts = results.filter(r => r.driver_id === top.id && r.season === 2026).reduce((s,r) => s+(r.points||0), 0);
-    const wins = results.filter(r => r.driver_id === top.id && r.season === 2026 && r.position === 1).length;
-    document.getElementById('lbl-leader').style.display='block';
-    document.getElementById('home-leader').innerHTML=`<div class="leader-card"><div class="leader-num">${top.number}</div><div><div class="leader-name">${top.name}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
+  if (drivers.length && results.length) {
+    const pointsByDriver = {};
+    results.forEach(r => {
+      if (!pointsByDriver[r.driver_id]) pointsByDriver[r.driver_id] = 0;
+      pointsByDriver[r.driver_id] += (r.points || 0);
+    });
+    const topId = Object.entries(pointsByDriver).sort((a,b) => b[1]-a[1])[0]?.[0];
+    const top = drivers.find(d => d.id === topId);
+    if (top) {
+      const pts = pointsByDriver[topId];
+      const wins = results.filter(r => r.driver_id === topId && r.position === 1).length;
+      document.getElementById('lbl-leader').style.display='block';
+      document.getElementById('home-leader').innerHTML=`<div class="leader-card"><div class="leader-num">${top.number}</div><div><div class="leader-name">${top.name}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
+    }
   }
 }
 
