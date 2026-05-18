@@ -744,7 +744,7 @@ async function loadHome() {
   const [drivers, races, results] = await Promise.all([
     get('drivers','select=*&order=wins.desc'),
     get('races','select=*&order=race_date.asc'),
-    get('results','select=*,drivers(name,number)&order=position.asc')
+    get('results','select=*,drivers(name,number)&season=eq.2026&order=position.asc')
   ]);
   document.getElementById('sc-drivers').textContent = drivers.length||'0';
   const past = races.filter(r=>r.status==='past');
@@ -772,9 +772,10 @@ async function loadHome() {
 
   if (drivers.length) {
     const top = drivers[0];
-    const pts = results.filter(r=>r.driver_id===top.id).reduce((s,r)=>s+(r.points||0),0);
+    const pts = results.filter(r => r.driver_id === top.id && r.season === 2026).reduce((s,r) => s+(r.points||0), 0);
+    const wins = results.filter(r => r.driver_id === top.id && r.season === 2026 && r.position === 1).length;
     document.getElementById('lbl-leader').style.display='block';
-    document.getElementById('home-leader').innerHTML=`<div class="leader-card"><div class="leader-num">${top.number}</div><div><div class="leader-name">${top.name}</div><div class="leader-sub">${pts} pts · ${top.wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
+    document.getElementById('home-leader').innerHTML=`<div class="leader-card"><div class="leader-num">${top.number}</div><div><div class="leader-name">${top.name}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
   }
 }
 
