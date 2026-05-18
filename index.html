@@ -98,6 +98,32 @@
   .hp-location { font-size: 12px; color: var(--text2); margin-top: 4px; }
   .hp-countdown { display: inline-block; margin-top: 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; background: rgba(242,100,25,0.12); border: 1px solid rgba(242,100,25,0.3); color: var(--orange); padding: 4px 10px; border-radius: 4px; }
 
+  /* NASCAR STANDINGS */
+  .nsc-subhdr { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--orange); margin-bottom: 14px; margin-top: 3px; }
+  .nsc-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .nsc-tbl thead { border-bottom: 2px solid var(--orange); }
+  .nsc-tbl thead tr { background: var(--asphalt-light); }
+  .nsc-tbl th { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); padding: 9px 10px; text-align: center; white-space: nowrap; }
+  .nsc-tbl th.th-left { text-align: left; }
+  .nsc-tbl td { padding: 9px 10px; border-bottom: 1px solid var(--bdr); text-align: center; color: var(--text); vertical-align: middle; background: var(--asphalt-mid); }
+  .nsc-tbl td.td-left { text-align: left; }
+  .nsc-tbl tr:nth-child(even) td { background: var(--asphalt-light); }
+  .nsc-tbl tr:last-child td { border-bottom: none; }
+  .nsc-tbl tr:hover td { background: #2c2c2c; }
+  .nsc-pos { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; line-height: 1; display: block; }
+  .nsc-pos.p1 { color: #FFD700; }
+  .nsc-pos.p2 { color: #C0C0C0; }
+  .nsc-pos.p3 { color: #CD7F32; }
+  .nsc-pos.px { color: var(--text2); }
+  .nsc-row-1 td:first-child { border-left: 3px solid #FFD700; }
+  .nsc-row-2 td:first-child { border-left: 3px solid #C0C0C0; }
+  .nsc-row-3 td:first-child { border-left: 3px solid #CD7F32; }
+  .nsc-pts { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; color: var(--text); }
+  .nsc-behind-dash { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; color: var(--text2); }
+  .nsc-behind { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 800; color: #e05555; }
+  .nsc-stat { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--text2); }
+  .nsc-driver-name { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 800; text-transform: uppercase; }
+
   /* DRIVERS */
   .driver-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 8px; margin-bottom: 16px; }
   .driver-card { border: 1px solid var(--bdr); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; background: var(--asphalt-mid); transition: border-color 0.12s; }
@@ -202,6 +228,7 @@
     .hero-panels{flex-direction:column}
     .hero-vdivider{width:auto;height:1px}
     .hp-date-big{font-size:36px}
+    .nsc-hide-sm{display:none}
   }
 
   .social-links { display: flex; align-items: center; gap: 10px; }
@@ -394,11 +421,25 @@
       <button class="tab-btn active" onclick="switchSeason(2026,this)">2026 Season</button>
       <button class="tab-btn" onclick="switchSeason(2025,this)">2025 Final Standings</button>
     </div>
-    <div class="sect-lbl" id="pts-season-label" style="margin-bottom:14px">2026 Championship Standings</div>
+    <div class="sect-lbl" id="pts-season-label" style="margin-bottom:2px">2026 Championship Standings</div>
+    <div class="nsc-subhdr" id="pts-round-label"></div>
     <div class="tbl-wrap">
-      <table class="tbl">
-        <thead><tr><th style="width:50px">Pos</th><th>Driver</th><th style="width:56px">Wins</th><th>Points</th></tr></thead>
-        <tbody id="pts-body"><tr><td colspan="4"><div class="loading">Loading</div></td></tr></tbody>
+      <table class="nsc-tbl">
+        <thead>
+          <tr>
+            <th style="width:42px">POS</th>
+            <th style="width:52px">NO.</th>
+            <th class="th-left">DRIVER</th>
+            <th>POINTS</th>
+            <th>BEHIND</th>
+            <th class="nsc-hide-sm">STARTS</th>
+            <th class="nsc-hide-sm">WINS</th>
+            <th class="nsc-hide-sm">TOP 5s</th>
+            <th class="nsc-hide-sm">TOP 10s</th>
+            <th class="nsc-hide-sm">DNFs</th>
+          </tr>
+        </thead>
+        <tbody id="pts-body"><tr><td colspan="10"><div class="loading">Loading</div></td></tr></tbody>
       </table>
     </div>
     <div class="sect-lbl" style="margin-top:8px;margin-bottom:12px">A-Main Championship Points</div>
@@ -885,38 +926,69 @@ function switchSeason(season, btn) {
 
 async function loadPoints() {
   const season = currentSeason;
-  const [drivers, results] = await Promise.all([
+  const [drivers, results, races] = await Promise.all([
     get('drivers','select=*'),
-    get('results', 'select=*&season=eq.' + season)
+    get('results', 'select=*&season=eq.' + season),
+    get('races', 'select=id,round,status,race_date&order=race_date.asc')
   ]);
-  const pts = {};
+
+  // "Through Round X" subheader
+  const pastRaces = races.filter(r => r.status==='past' && r.race_date?.startsWith(season.toString()));
+  const lastRound = pastRaces.length ? pastRaces[pastRaces.length-1].round : 0;
+  document.getElementById('pts-round-label').textContent = lastRound ? 'Through Round ' + lastRound + ' of 8' : '';
+
+  // Aggregate per-driver stats
+  const stats = {};
   if (season === 2026) {
-    drivers.forEach(d => { pts[d.id] = {driver:d, total:0, wins:0}; });
+    drivers.forEach(d => { stats[d.id] = {driver:d, total:0, starts:0, wins:0, top5:0, top10:0, dnfs:0}; });
   }
   results.forEach(r => {
-    if (!pts[r.driver_id]) {
+    if (!stats[r.driver_id]) {
       const d = drivers.find(x => x.id === r.driver_id);
-      if (d) pts[d.id] = {driver:d, total:0, wins:0};
+      if (d) stats[d.id] = {driver:d, total:0, starts:0, wins:0, top5:0, top10:0, dnfs:0};
     }
-    if (pts[r.driver_id]) {
-      pts[r.driver_id].total += (r.points||0);
-      if (r.position === 1) pts[r.driver_id].wins++;
+    if (stats[r.driver_id]) {
+      const s = stats[r.driver_id];
+      s.total += (r.points || 0);
+      s.starts++;
+      if (r.position === 1) s.wins++;
+      if (r.position <= 5) s.top5++;
+      if (r.position <= 10) s.top10++;
+      if (r.dnf === true) s.dnfs++;
     }
   });
-  const sorted = Object.values(pts)
+
+  const sorted = Object.values(stats)
     .filter(p => season === 2025 ? p.total > 0 : true)
     .sort((a,b) => b.total - a.total || b.wins - a.wins);
-  const max = sorted[0]?.total || 1;
+
   const tb = document.getElementById('pts-body');
   if (!sorted.length) {
     const msg = season === 2026 ? "Season hasn't started yet" : "No 2025 data found";
-    tb.innerHTML = '<tr><td colspan="4"><div class="empty">' + msg + '</div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="10"><div class="empty">' + msg + '</div></td></tr>';
     return;
   }
-  tb.innerHTML = sorted.map((p,i) => {
-    const bar = Math.max(14, Math.round(p.total / Math.max(max,1) * 110));
-    const dim = p.total < max * 0.5 ? ' dim' : '';
-    return '<tr><td><span class="' + pc(i) + '">' + (i+1) + '</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">' + getDriverNumEl(p.driver.name, p.driver.number, 32) + '<span>' + p.driver.name + '</span></span></td><td>' + p.wins + '</td><td><div class="pts-row"><div class="pts-bar' + dim + '" style="width:' + bar + 'px"></div><span class="pts-n">' + p.total + '</span></div></td></tr>';
+
+  const leaderPts = sorted[0].total;
+  tb.innerHTML = sorted.map((p, i) => {
+    const pos = i + 1;
+    const posClass = pos===1?'p1':pos===2?'p2':pos===3?'p3':'px';
+    const rowClass = pos===1?'nsc-row-1':pos===2?'nsc-row-2':pos===3?'nsc-row-3':'';
+    const behind = i===0
+      ? '<span class="nsc-behind-dash">—</span>'
+      : '<span class="nsc-behind">−' + (leaderPts - p.total) + '</span>';
+    return '<tr class="' + rowClass + '">' +
+      '<td><span class="nsc-pos ' + posClass + '">' + pos + '</span></td>' +
+      '<td>' + getDriverNumEl(p.driver.name, p.driver.number, 28) + '</td>' +
+      '<td class="td-left"><span class="nsc-driver-name">' + p.driver.name + '</span></td>' +
+      '<td><span class="nsc-pts">' + p.total + '</span></td>' +
+      '<td>' + behind + '</td>' +
+      '<td class="nsc-hide-sm"><span class="nsc-stat">' + p.starts + '</span></td>' +
+      '<td class="nsc-hide-sm"><span class="nsc-stat">' + p.wins + '</span></td>' +
+      '<td class="nsc-hide-sm"><span class="nsc-stat">' + p.top5 + '</span></td>' +
+      '<td class="nsc-hide-sm"><span class="nsc-stat">' + p.top10 + '</span></td>' +
+      '<td class="nsc-hide-sm"><span class="nsc-stat">' + p.dnfs + '</span></td>' +
+      '</tr>';
   }).join('');
 }
 
