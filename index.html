@@ -765,7 +765,7 @@ async function loadHome() {
   ]);
 
   document.getElementById('sc-drivers').textContent = drivers.length||'0';
-  const past = races.filter(r=>r.status==='past');
+  const past = races.filter(r=>r.status==='past' && r.race_date?.startsWith('2026'));
   document.getElementById('sc-races').textContent = past.length||'0';
 
   // LEFT PANEL — last race winner
