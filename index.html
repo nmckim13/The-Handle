@@ -353,14 +353,25 @@
   }
 
   /* 13 SECOND CLUB */
-  .club-card { background: #080808; border: 2px solid #FFD700; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 0 24px rgba(255,215,0,0.08); }
-  .club-title { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; color: #FFD700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-  .club-empty { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #666; text-align: center; padding: 10px 0 4px; }
-  .club-member { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid rgba(255,215,0,0.12); }
+  .club-card { background: #080808; border: 2px solid var(--yellow); border-top: 4px solid var(--yellow); border-radius: 12px; padding: 22px 22px 14px; margin-bottom: 16px; box-shadow: 0 0 32px rgba(247,201,72,0.10); }
+  .club-header { margin-bottom: 6px; }
+  .club-trophy { font-size: 28px; margin-bottom: 6px; }
+  .club-title { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; color: var(--yellow); line-height: 1; margin-bottom: 4px; }
+  .club-subtitle { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #666; margin-bottom: 16px; }
+  .club-divider { border: none; border-top: 1px solid rgba(247,201,72,0.18); margin: 0 0 10px; }
+  .club-empty { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #555; text-align: center; padding: 14px 0 6px; }
+  .club-member { display: flex; align-items: center; gap: 14px; padding: 10px 4px; border-bottom: 1px solid rgba(247,201,72,0.10); }
   .club-member:last-child { border-bottom: none; }
-  .club-name { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; text-transform: uppercase; color: var(--text); }
-  .club-laptime { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; color: #FFD700; margin-left: auto; }
-  .club-date { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .club-rank { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 900; color: #444; min-width: 22px; text-align: center; }
+  .club-rank.r1 { color: var(--yellow); font-size: 22px; }
+  .club-info { flex: 1; min-width: 0; }
+  .club-name { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; text-transform: uppercase; color: var(--text); line-height: 1.1; }
+  .club-name.p1 { font-size: 24px; }
+  .club-date { font-size: 11px; color: var(--text2); margin-top: 2px; letter-spacing: 0.5px; }
+  .club-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-left: auto; }
+  .club-laptime { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; color: var(--yellow); line-height: 1; }
+  .club-laptime.p1 { font-size: 34px; }
+  .club-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--orange); border: 1px solid rgba(242,100,25,0.4); padding: 2px 7px; border-radius: 3px; }
 
   /* SPONSORS */
   .sponsor-presenting { background: var(--asphalt-mid); border: 2px solid var(--yellow); border-radius: 12px; padding: 32px 20px; text-align: center; margin-bottom: 14px; }
@@ -1081,19 +1092,32 @@ async function loadRecords(){
   const recs=await get('lap_records','select=*,drivers(name,number),races(name,round)&order=lap_time_seconds.asc');
   const tb=document.getElementById('rec-body');
 
-  // 13 Second Club
-  const club = recs.filter(r => r.lap_time_seconds != null && r.lap_time_seconds <= 13);
+  // 13 Second Club — sub-14 official times
+  const club = recs.filter(r => r.lap_time_seconds != null && r.lap_time_seconds < 14);
   const clubEl = document.getElementById('club-13sec');
   clubEl.innerHTML = `<div class="club-card">
-    <div class="club-title">🏆 13 Second Club — Exclusive Honor Roll</div>
-    ${club.length ? club.map(r => {
+    <div class="club-header">
+      <div class="club-trophy">🏆</div>
+      <div class="club-title">13 Second Club</div>
+      <div class="club-subtitle">Official qualifying times at weight — The Handle</div>
+    </div>
+    <hr class="club-divider">
+    ${club.length ? club.map((r,i) => {
+      const isP1 = i === 0;
       const d = r.set_date ? new Date(r.set_date+'T12:00:00').toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'}) : '—';
       return `<div class="club-member">
+        <div class="club-rank ${isP1?'r1':''}">${isP1?'👑':i+1}</div>
         ${r.drivers?.name ? getDriverNumEl(r.drivers.name,r.drivers.number,36) : ''}
-        <div><div class="club-name">${r.drivers?.name||'—'}</div><div class="club-date">${d}</div></div>
-        <div class="club-laptime">${r.lap_time_display}</div>
+        <div class="club-info">
+          <div class="club-name${isP1?' p1':''}">${r.drivers?.name||'—'}</div>
+          <div class="club-date">${d}</div>
+        </div>
+        <div class="club-right">
+          <div class="club-laptime${isP1?' p1':''}">${r.lap_time_display}</div>
+          <div class="club-badge">Official</div>
+        </div>
       </div>`;
-    }).join('') : '<div class="club-empty">No members yet — be the first.</div>'}
+    }).join('') : '<div class="club-empty">No members yet — be the first to break 14 seconds</div>'}
   </div>`;
 
   if(!recs.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No lap times recorded yet</div></td></tr>';return;}
