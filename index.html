@@ -351,6 +351,37 @@
     .prof-kv-grid { grid-template-columns: 1fr; }
     .prof-name { font-size: 28px; }
   }
+
+  /* 13 SECOND CLUB */
+  .club-card { background: #080808; border: 2px solid #FFD700; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 0 24px rgba(255,215,0,0.08); }
+  .club-title { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; color: #FFD700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .club-empty { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #666; text-align: center; padding: 10px 0 4px; }
+  .club-member { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid rgba(255,215,0,0.12); }
+  .club-member:last-child { border-bottom: none; }
+  .club-name { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; text-transform: uppercase; color: var(--text); }
+  .club-laptime { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; color: #FFD700; margin-left: auto; }
+  .club-date { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  /* SPONSORS */
+  .sponsor-presenting { background: var(--asphalt-mid); border: 2px solid var(--yellow); border-radius: 12px; padding: 32px 20px; text-align: center; margin-bottom: 14px; }
+  .sponsor-presenting-name { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; font-weight: 900; text-transform: uppercase; color: var(--yellow); margin-top: 10px; }
+  .sponsor-presenting img { max-height: 110px; max-width: 260px; object-fit: contain; display: block; margin: 0 auto; }
+  .sponsor-tier-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--text2); margin: 20px 0 10px; }
+  .sponsor-class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap: 10px; margin-bottom: 14px; }
+  .sponsor-class-card { background: var(--asphalt-mid); border: 1px solid var(--bdr2); border-radius: 10px; padding: 22px 16px; text-align: center; }
+  .sponsor-class-name { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; text-transform: uppercase; color: var(--text); margin-top: 8px; }
+  .sponsor-class-card img { max-height: 72px; max-width: 100%; object-fit: contain; display: block; margin: 0 auto; }
+  .sponsor-support-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px,1fr)); gap: 8px; }
+  .sponsor-support-card { background: var(--asphalt-mid); border: 1px solid var(--bdr); border-radius: 8px; padding: 16px 10px; text-align: center; }
+  .sponsor-support-name { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--text2); margin-top: 6px; }
+  .sponsor-support-card img { max-height: 48px; max-width: 100%; object-fit: contain; display: block; margin: 0 auto; }
+  .sponsor-contact { background: var(--asphalt-mid); border: 1px solid var(--bdr); border-left: 3px solid var(--orange); border-radius: 10px; padding: 24px; text-align: center; }
+  .sponsor-contact h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; text-transform: uppercase; color: var(--orange); margin-bottom: 8px; }
+  .sponsor-contact p { font-size: 13px; color: var(--text2); line-height: 1.7; }
+
+  /* HOME VIDEO BOARD */
+  .video-board { border-radius: 10px; overflow: hidden; border: 1px solid var(--bdr); aspect-ratio: 16/9; background: var(--asphalt); margin-bottom: 16px; }
+  .video-board iframe { width: 100%; height: 100%; display: block; border: none; }
 </style>
 </head>
 <body>
@@ -384,6 +415,7 @@
     <button onclick="showPage('track',this);loadWeather()">Weather</button>
     <button onclick="showPage('info',this)">Info</button>
     <button onclick="showPage('live',this)" style="color:var(--orange)">⬤ Live</button>
+    <button onclick="showPage('sponsors',this);loadSponsors()">Sponsors</button>
   </div>
 </nav>
 
@@ -407,6 +439,10 @@
     <div id="home-leader"></div>
     <div class="sect-lbl" id="lbl-top5" style="display:none">Top 5 Standings</div>
     <div id="home-top5"></div>
+    <div class="sect-lbl" style="margin-top:10px">Latest from YardKartz</div>
+    <div class="video-board">
+      <iframe src="https://www.youtube.com/embed?listType=user_uploads&list=yardkartz&autoplay=1&mute=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
   </div>
 
   <!-- DRIVERS -->
@@ -491,6 +527,7 @@
   <!-- RECORDS -->
   <div class="page" id="page-records">
     <div class="sect-lbl" style="margin-bottom:14px">All-Time Lap Records — The Handle</div>
+    <div id="club-13sec"></div>
     <div class="tbl-wrap">
       <table class="tbl">
         <thead><tr><th style="width:50px">Rank</th><th>Driver</th><th>Best Lap</th><th style="width:76px">Date</th><th style="width:56px">Race</th></tr></thead>
@@ -744,6 +781,12 @@
   <div class="page" id="page-profile">
     <button class="prof-back" onclick="backToDrivers()">← All Drivers</button>
     <div id="profile-content"><div class="loading">Loading</div></div>
+  </div>
+
+  <!-- SPONSORS -->
+  <div class="page" id="page-sponsors">
+    <div class="sect-lbl" style="margin-bottom:14px">2026 Sponsors</div>
+    <div id="sponsors-content"><div class="loading">Loading</div></div>
   </div>
 
   <!-- LIVE TIMING -->
@@ -1038,6 +1081,22 @@ function filterR(type,btn){
 async function loadRecords(){
   const recs=await get('lap_records','select=*,drivers(name,number),races(name,round)&order=lap_time_seconds.asc');
   const tb=document.getElementById('rec-body');
+
+  // 13 Second Club
+  const club = recs.filter(r => r.lap_time_seconds != null && r.lap_time_seconds <= 13);
+  const clubEl = document.getElementById('club-13sec');
+  clubEl.innerHTML = `<div class="club-card">
+    <div class="club-title">🏆 13 Second Club — Exclusive Honor Roll</div>
+    ${club.length ? club.map(r => {
+      const d = r.set_date ? new Date(r.set_date+'T12:00:00').toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'}) : '—';
+      return `<div class="club-member">
+        ${r.drivers?.name ? getDriverNumEl(r.drivers.name,r.drivers.number,36) : ''}
+        <div><div class="club-name">${r.drivers?.name||'—'}</div><div class="club-date">${d}</div></div>
+        <div class="club-laptime">${r.lap_time_display}</div>
+      </div>`;
+    }).join('') : '<div class="club-empty">No members yet — be the first.</div>'}
+  </div>`;
+
   if(!recs.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No lap times recorded yet</div></td></tr>';return;}
   tb.innerHTML=recs.map((r,i)=>{
     const d=r.set_date?new Date(r.set_date+'T12:00:00').toLocaleDateString('en',{month:'short',day:'numeric'}):'—';
@@ -1249,13 +1308,13 @@ const CUSTOM_NUMS = {
   'Goose':         { src:'goose76.png',      w:110, blend:'lighten' },
   'Connerz':       { src:'connerz72.png',    w:110, blend:'normal' },
   'T Dirt':        { src:'tdirt418.png',     w:120, blend:'lighten' },
-  'Mike Miller':   { src:'madmike28.png',    w:120, blend:'lighten' },
+  'Mad Mike':      { src:'madmike28.png',    w:120, blend:'lighten' },
   'Tonka Tim':     { src:'tonkatim61.png',   w:110, blend:'normal' },
   'Miller Lite':   { src:'millerlite13.png', w:110, blend:'normal' },
   'Bowen':         { src:'bowen19.png',      w:110, blend:'lighten' },
   'Zack':          { src:'zack30.png',       w:110, blend:'normal' },
   'Tony Miletich': { src:'tony22.png',       w:110, blend:'normal' },
-  'Buiscut':       { src:'buiscut54.png',    w:110, blend:'normal' },
+  'Biscuit':       { src:'buiscut54.png',    w:110, blend:'normal' },
   'East Gary':     { src:'eastgary88.png',   w:120, blend:'lighten' },
   'Ronnie':        { src:'ronnie09.png',     w:120, blend:'normal' },
   'Arthur Walstra':{ src:'arthur3.png',      w:100, blend:'normal' },
@@ -1397,6 +1456,75 @@ async function showDriverProfile(id) {
       </div>`;
     }).join('')}` : ''}
   `;
+}
+
+let sponsorsLoaded = false;
+async function loadSponsors() {
+  if (sponsorsLoaded) return;
+  sponsorsLoaded = true;
+  const el = document.getElementById('sponsors-content');
+  const sponsors = await get('sponsors', 'select=*&order=tier.asc,name.asc');
+
+  if (!sponsors.length) {
+    el.innerHTML = `<div class="sponsor-contact">
+      <h3>Interested in Sponsoring?</h3>
+      <p>Support the YardKartz! 2026 Stock Predator Championship at The Handle.<br>
+      Contact race director Mad Mike for sponsorship opportunities.</p>
+    </div>`;
+    return;
+  }
+
+  const presenting = sponsors.filter(s => s.tier === 'presenting');
+  const classSponsors = sponsors.filter(s => s.tier === 'class');
+  const supporting = sponsors.filter(s => s.tier === 'supporting' || s.tier === 'support');
+
+  const logoOrName = (s, imgClass, nameClass) =>
+    s.logo_url
+      ? `<img src="${s.logo_url}" alt="${s.name}" class="${imgClass}" onerror="this.outerHTML='<div class=\\'${nameClass}\\'>${s.name}</div>'">`
+      : `<div class="${nameClass}">${s.name}</div>`;
+
+  let html = '';
+
+  if (presenting.length) {
+    html += '<div class="sponsor-tier-lbl">Presenting Sponsor</div>';
+    html += presenting.map(s => `
+      <div class="sponsor-presenting">
+        ${logoOrName(s, '', 'sponsor-presenting-name')}
+        ${s.logo_url ? `<div class="sponsor-presenting-name">${s.name}</div>` : ''}
+      </div>`).join('');
+  }
+
+  if (classSponsors.length) {
+    html += '<div class="sponsor-tier-lbl">Class Sponsors</div>';
+    html += '<div class="sponsor-class-grid">' +
+      classSponsors.map(s => `
+        <div class="sponsor-class-card">
+          ${logoOrName(s, '', 'sponsor-class-name')}
+          ${s.logo_url ? `<div class="sponsor-class-name">${s.name}</div>` : ''}
+        </div>`).join('') +
+      '</div>';
+  }
+
+  if (supporting.length) {
+    html += '<div class="sponsor-tier-lbl">Supporting Sponsors</div>';
+    html += '<div class="sponsor-support-grid">' +
+      supporting.map(s => `
+        <div class="sponsor-support-card">
+          ${logoOrName(s, '', 'sponsor-support-name')}
+          ${s.logo_url ? `<div class="sponsor-support-name">${s.name}</div>` : ''}
+        </div>`).join('') +
+      '</div>';
+  }
+
+  if (!presenting.length && !classSponsors.length && !supporting.length) {
+    html = `<div class="sponsor-contact">
+      <h3>Interested in Sponsoring?</h3>
+      <p>Support the YardKartz! 2026 Stock Predator Championship at The Handle.<br>
+      Contact race director Mad Mike for sponsorship opportunities.</p>
+    </div>`;
+  }
+
+  el.innerHTML = html;
 }
 
 loadHome(); loadDrivers(); loadPoints(); loadSchedule(); loadRecords(); loadVideos();
