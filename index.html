@@ -440,9 +440,8 @@
     <div class="sect-lbl" id="lbl-top5" style="display:none">Top 5 Standings</div>
     <div id="home-top5"></div>
     <div class="sect-lbl" style="margin-top:10px">Latest from YardKartz</div>
-    <div id="home-video-board" class="video-board" style="display:flex;align-items:center;justify-content:center;">
-      <div class="loading">Loading video…</div>
-    </div>
+    <div id="home-video-board" class="video-board" style="display:flex;align-items:center;justify-content:center;"><div class="loading">Loading video…</div></div>
+    <div id="home-video-title" style="font-size:12px;color:var(--text2);margin-top:6px;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;"></div>
   </div>
 
   <!-- DRIVERS -->
@@ -1529,40 +1528,23 @@ async function loadSponsors() {
 
 async function loadLatestVideo() {
   const el = document.getElementById('home-video-board');
-  const fallback = () => {
-    el.style.aspectRatio = '';
-    el.style.display = 'flex';
-    el.style.alignItems = 'center';
-    el.style.justifyContent = 'center';
-    el.style.minHeight = '120px';
-    el.innerHTML = `<a href="https://www.youtube.com/@yardkartz" target="_blank" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--orange);text-decoration:none;border:1px solid var(--orange);padding:10px 22px;border-radius:7px;">▶ Watch on YouTube</a>`;
-  };
+  const titleEl = document.getElementById('home-video-title');
   try {
-    // Step 1: scrape channel ID from @yardkartz page
-    const pageRes = await fetch('https://corsproxy.io/?' + encodeURIComponent('https://www.youtube.com/@yardkartz'));
-    if (!pageRes.ok) throw new Error('page fetch failed');
-    const html = await pageRes.text();
-    const cidMatch = html.match(/"channelId":"(UC[^"]+)"/);
-    if (!cidMatch) throw new Error('channel ID not found');
-    const channelId = cidMatch[1];
-
-    // Step 2: fetch RSS via rss2json
-    const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-    const apiRes = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
-    if (!apiRes.ok) throw new Error('rss fetch failed');
-    const data = await apiRes.json();
+    const res = await fetch('https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.youtube.com%2Ffeeds%2Fvideos.xml%3Fchannel_id%3DUCFSvAzzD1GsDA7fO_19ROJA');
+    if (!res.ok) throw new Error('fetch failed');
+    const data = await res.json();
     if (data.status !== 'ok' || !data.items?.length) throw new Error('no items');
-
-    // Step 3: extract video ID and embed
-    const link = data.items[0].link;
-    const vidMatch = link.match(/[?&]v=([^&]+)/);
+    const item = data.items[0];
+    const vidMatch = item.link.match(/[?&]v=([^&]+)/);
     if (!vidMatch) throw new Error('no video id');
     const videoId = vidMatch[1];
-
     el.style.display = '';
     el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    if (titleEl && item.title) titleEl.textContent = item.title;
   } catch(e) {
-    fallback();
+    el.style.aspectRatio = '';
+    el.style.minHeight = '80px';
+    el.innerHTML = `<a href="https://www.youtube.com/@yardkartz" target="_blank" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--orange);text-decoration:none;border:1px solid var(--orange);padding:10px 22px;border-radius:7px;">▶ Watch on YouTube</a>`;
   }
 }
 
