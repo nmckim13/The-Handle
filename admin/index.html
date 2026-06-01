@@ -64,6 +64,21 @@
   .toast.error { border-left-color: var(--red); }
 
   @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+  /* IMPORT / EXPORT */
+  .btn-outline { background: none; border: 1px solid var(--bdr); color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 10px 20px; border-radius: 7px; cursor: pointer; transition: all 0.12s; }
+  .btn-outline:hover { background: var(--bg3); }
+  .file-label { display: inline-flex; align-items: center; gap: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 10px 20px; border: 1.5px solid var(--orange); border-radius: 7px; color: var(--orange); cursor: pointer; transition: all 0.12s; }
+  .file-label:hover { background: var(--orange); color: #fff; }
+  .preview-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+  .preview-table th { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); text-align: left; padding: 6px 10px; border-bottom: 2px solid var(--bdr); }
+  .preview-table td { padding: 7px 10px; border-bottom: 1px solid var(--bdr); vertical-align: top; }
+  .preview-table tr.row-error td { background: rgba(192,57,43,0.07); color: var(--red); }
+  .preview-table tr.row-warn td { background: rgba(247,201,72,0.08); }
+  .warning-box { background: rgba(247,201,72,0.1); border: 1px solid rgba(247,201,72,0.4); border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; font-size: 13px; color: #7a5e00; }
+  .error-box { background: rgba(192,57,43,0.07); border: 1px solid rgba(192,57,43,0.3); border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px; color: var(--red); }
+  .success-box { background: rgba(45,139,69,0.08); border: 1px solid rgba(45,139,69,0.35); border-radius: 6px; padding: 12px 16px; font-size: 14px; color: var(--green); font-weight: 600; margin-bottom: 8px; }
+  .import-confirm-area { display: flex; gap: 10px; margin-top: 16px; align-items: center; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -137,8 +152,54 @@
 
   <!-- RESULTS -->
   <div class="admin-page" id="ap-results">
+
+    <!-- IMPORT / EXPORT -->
     <div class="card">
-      <div class="card-title">Add Race Result</div>
+      <div class="card-title">Import / Export Results</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:220px">
+          <div class="form-group" style="margin-bottom:10px">
+            <label>Race</label>
+            <select id="export-race"><option value="">Select race...</option></select>
+          </div>
+          <button class="btn btn-primary" onclick="downloadResultsSheet()">&#8595; Download Results Sheet</button>
+        </div>
+        <div style="flex:1;min-width:220px">
+          <div class="form-group" style="margin-bottom:10px">
+            <label>Race</label>
+            <select id="import-race"><option value="">Select race...</option></select>
+          </div>
+          <label class="file-label">
+            &#8593; Upload Results Sheet
+            <input type="file" id="csv-upload" accept=".csv" style="display:none" onchange="handleCSVUpload(event)">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT PREVIEW -->
+    <div class="card" id="import-preview-card" style="display:none">
+      <div class="card-title">Import Preview</div>
+      <div id="import-messages"></div>
+      <div id="import-replace-confirm" style="display:none">
+        <div class="warning-box">
+          <strong>Results already exist for this race. Replace them?</strong>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="proceedWithImport()">Yes, Replace</button>
+            <button class="btn btn-outline" onclick="cancelImport()">No, Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="import-preview-table-wrap"></div>
+      <div id="import-actions" class="import-confirm-area" style="display:none">
+        <button class="btn btn-primary" onclick="confirmImport()">Confirm Import</button>
+        <button class="btn btn-outline" onclick="cancelImport()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- MANUAL ENTRY -->
+    <div class="card">
+      <div class="card-title">Add Race Result (Manual)</div>
       <div class="form-grid">
         <div class="form-group"><label>Race</label><select id="res-race"><option value="">Select race...</option></select></div>
         <div class="form-group"><label>Driver</label><select id="res-driver"><option value="">Select driver...</option></select></div>
@@ -147,7 +208,7 @@
         <div class="form-group"><label>Points Awarded</label><input id="res-pts" type="number" placeholder="25"></div>
         <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="addResult()">Add Result</button></div>
       </div>
-      <p style="font-size:12px;color:var(--text2);margin-top:8px">Tip: Add one row per driver per race. Suggested points: 1st=25, 2nd=18, 3rd=15, 4th=12, 5th=10, 6th=8</p>
+      <p style="font-size:12px;color:var(--text2);margin-top:8px">Points scale: 35 · 32 · 29 · 26 · 23 · 20 · 18 · 16 · 14 · 12 · 10 · 9 · 8 · 7 · 6 · 5 · 4 · 3 · 2 · 1</p>
     </div>
   </div>
 
@@ -284,6 +345,13 @@
         method: 'DELETE',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
       });
+    },
+    async patch(table, query, data) {
+      await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
     }
   };
 
@@ -310,7 +378,7 @@
       db.get('races', 'select=*&order=race_date.desc')
     ]);
     const dSelects = ['res-driver','rec-driver'];
-    const rSelects = ['res-race','rec-race'];
+    const rSelects = ['res-race','rec-race','export-race','import-race'];
     dSelects.forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -520,6 +588,187 @@
       body: JSON.stringify(data)
     });
     toast('Profile saved!');
+  }
+
+  // IMPORT / EXPORT
+  const POINTS_SCALE = [35,32,29,26,23,20,18,16,14,12,10,9,8,7,6,5,4,3,2,1];
+  let _importState = null;
+
+  function calcPoints(pos) {
+    if (!pos || pos < 1) return 0;
+    return POINTS_SCALE[pos - 1] || 0;
+  }
+
+  async function downloadResultsSheet() {
+    const raceId = document.getElementById('export-race').value;
+    if (!raceId) { toast('Select a race first', true); return; }
+    const [races, drivers] = await Promise.all([
+      db.get('races', `select=*&id=eq.${raceId}`),
+      db.get('drivers', 'select=*&order=name.asc')
+    ]);
+    const race = races[0];
+    if (!race) { toast('Race not found', true); return; }
+
+    const csvRows = [['Position','Driver Name','Driver Number','Points','Notes']];
+    drivers.forEach(d => csvRows.push(['', d.name, d.number, '', '']));
+    const csv = csvRows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    const filename = `${race.name.replace(/[^a-zA-Z0-9]+/g,'-')}-${race.race_date}.csv`;
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast(`Downloaded: ${filename}`);
+  }
+
+  function splitCSVLine(line) {
+    const fields = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else { inQ = !inQ; }
+      } else if (ch === ',' && !inQ) {
+        fields.push(cur); cur = '';
+      } else { cur += ch; }
+    }
+    fields.push(cur);
+    return fields;
+  }
+
+  function parseCSV(text) {
+    const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
+    if (lines.length < 2) return [];
+    const headers = splitCSVLine(lines[0]).map(h => h.trim());
+    return lines.slice(1).map(line => {
+      const fields = splitCSVLine(line);
+      const obj = {};
+      headers.forEach((h,i) => { obj[h] = (fields[i] || '').trim(); });
+      return obj;
+    }).filter(r => (r['Driver Name'] || '').trim());
+  }
+
+  async function handleCSVUpload(event) {
+    const file = event.target.files[0];
+    event.target.value = '';
+    const raceId = document.getElementById('import-race').value;
+    if (!raceId) { toast('Select a race before uploading', true); return; }
+    if (!file) return;
+
+    const text = await file.text();
+    const rows = parseCSV(text);
+    if (!rows.length) { toast('CSV appears empty or invalid', true); return; }
+
+    const [drivers, existingResults] = await Promise.all([
+      db.get('drivers', 'select=*&order=name.asc'),
+      db.get('results', `select=*&race_id=eq.${raceId}`)
+    ]);
+
+    const driverMap = {};
+    drivers.forEach(d => { driverMap[d.name.toLowerCase().trim()] = d; });
+
+    const previewRows = rows.map(row => {
+      const pos = parseInt(row['Position']);
+      const name = (row['Driver Name'] || '').trim();
+      const driver = driverMap[name.toLowerCase()];
+      const pts = (pos && pos > 0) ? calcPoints(pos) : 0;
+      return { name, number: row['Driver Number'] || '', position: pos || null, points: pts, notes: row['Notes'] || '', driver, skip: !pos || pos === 0, notFound: !driver };
+    });
+
+    const filledPositions = previewRows.filter(r => !r.skip).map(r => r.position);
+    const dupPositions = [...new Set(filledPositions.filter((p,i) => filledPositions.indexOf(p) !== i))];
+
+    _importState = { raceId, previewRows, dupPositions, existingResults };
+
+    const previewCard = document.getElementById('import-preview-card');
+    previewCard.style.display = 'block';
+    previewCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    if (existingResults.length > 0) {
+      document.getElementById('import-messages').innerHTML = '';
+      document.getElementById('import-preview-table-wrap').innerHTML = renderPreviewTable(previewRows, dupPositions);
+      document.getElementById('import-replace-confirm').style.display = 'block';
+      document.getElementById('import-actions').style.display = 'none';
+    } else {
+      renderImportUI(previewRows, dupPositions);
+    }
+  }
+
+  function renderPreviewTable(previewRows, dupPositions) {
+    const active = previewRows.filter(r => !r.skip);
+    if (!active.length) return '<p style="color:var(--text2);font-size:13px;margin-top:12px">No rows with position filled in.</p>';
+    return `<table class="preview-table">
+      <thead><tr><th>Pos</th><th>Driver</th><th>#</th><th>Points</th><th>Notes</th></tr></thead>
+      <tbody>${active.map(r => {
+        const isDup = dupPositions.includes(r.position);
+        const cls = r.notFound ? 'row-error' : (isDup ? 'row-warn' : 'row-ok');
+        return `<tr class="${cls}">
+          <td>${r.position}</td>
+          <td>${r.name}${r.notFound ? ` <em style="font-size:11px">(not found — will be skipped)</em>` : ''}</td>
+          <td>${r.number}</td>
+          <td>${r.notFound ? '—' : r.points}</td>
+          <td>${r.notes}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  }
+
+  function renderImportUI(previewRows, dupPositions) {
+    const msgs = [];
+    const notFound = previewRows.filter(r => r.notFound && !r.skip).map(r => r.name);
+    if (notFound.length) msgs.push(`<div class="error-box"><strong>Drivers not matched (will be skipped):</strong> ${notFound.join(', ')}</div>`);
+    if (dupPositions.length) msgs.push(`<div class="warning-box"><strong>Duplicate positions detected: P${dupPositions.join(', P')}</strong> — verify before confirming.</div>`);
+    const skipped = previewRows.filter(r => r.skip).length;
+    if (skipped) msgs.push(`<p style="font-size:12px;color:var(--text2);margin-bottom:8px">${skipped} row${skipped!==1?'s':''} with no position will be skipped (DNS/DNF).</p>`);
+    document.getElementById('import-messages').innerHTML = msgs.join('');
+    document.getElementById('import-preview-table-wrap').innerHTML = renderPreviewTable(previewRows, dupPositions);
+    document.getElementById('import-replace-confirm').style.display = 'none';
+    document.getElementById('import-actions').style.display = 'flex';
+  }
+
+  function proceedWithImport() {
+    if (!_importState) return;
+    renderImportUI(_importState.previewRows, _importState.dupPositions);
+  }
+
+  async function confirmImport() {
+    if (!_importState) return;
+    const { raceId, previewRows, existingResults } = _importState;
+
+    if (existingResults.length > 0) {
+      await fetch(`${SUPABASE_URL}/rest/v1/results?race_id=eq.${raceId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+    }
+
+    const toInsert = previewRows.filter(r => !r.skip && !r.notFound && r.position > 0);
+    if (!toInsert.length) { toast('No valid results to import', true); return; }
+
+    await db.post('results', toInsert.map(r => ({ race_id: raceId, driver_id: r.driver.id, position: r.position, points: r.points })));
+    await db.patch('races', `id=eq.${raceId}`, { status: 'past' });
+
+    const count = toInsert.length;
+    document.getElementById('import-messages').innerHTML = `<div class="success-box">${count} result${count!==1?'s':''} imported successfully. Race status set to Past.</div>`;
+    document.getElementById('import-preview-table-wrap').innerHTML = '';
+    document.getElementById('import-actions').style.display = 'none';
+    _importState = null;
+
+    populateSelects();
+    loadRaceList();
+    toast(`${count} results saved!`);
+  }
+
+  function cancelImport() {
+    _importState = null;
+    document.getElementById('import-preview-card').style.display = 'none';
+    document.getElementById('import-messages').innerHTML = '';
+    document.getElementById('import-preview-table-wrap').innerHTML = '';
+    document.getElementById('import-actions').style.display = 'none';
+    document.getElementById('import-replace-confirm').style.display = 'none';
   }
 
   // INIT
