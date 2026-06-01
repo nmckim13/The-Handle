@@ -103,6 +103,7 @@
     <button onclick="aShow('records',this)">Lap Records</button>
     <button onclick="aShow('videos',this)">Videos</button>
     <button onclick="aShow('profiles',this)">Driver Profiles</button>
+    <button onclick="aShow('announcements',this)">Announcements</button>
   </div>
 </nav>
 
@@ -315,6 +316,70 @@
         <button class="btn btn-primary" onclick="saveProfile()">Save Profile</button>
       </div>
     </div>
+  </div>
+
+  <!-- ANNOUNCEMENTS -->
+  <!-- SQL to create table in Supabase:
+    CREATE TABLE announcements (
+      id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+      message text NOT NULL,
+      type text NOT NULL DEFAULT 'General',
+      active boolean NOT NULL DEFAULT true,
+      created_at timestamptz DEFAULT now()
+    );
+    ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Public read" ON announcements FOR SELECT USING (true);
+    CREATE POLICY "Service full access" ON announcements USING (true) WITH CHECK (true);
+  -->
+  <div class="admin-page" id="ap-announcements">
+
+    <div class="card">
+      <div class="card-title">Quick Actions</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" style="background:#0d2340;color:#7bb8f5;border:1px solid #1c4a80" onclick="quickAnnounce('Rain Delay',&quot;Tonight’s race has been delayed due to weather. Check back for updates.&quot;)">&#127783; Rain Delay</button>
+        <button class="btn" style="background:#3a0a0a;color:#f58080;border:1px solid #6a2020" onclick="quickAnnounce('Cancellation',&quot;Tonight’s race has been cancelled due to weather. We will announce the makeup date soon.&quot;)">&#10060; Race Cancelled</button>
+        <button class="btn" style="background:#0a2a14;color:#7bd49c;border:1px solid #1a5c30" onclick="allClearAnnounce()">&#9989; All Clear</button>
+        <button class="btn" style="background:#2a1600;color:#f5b040;border:1px solid #5c3800" onclick="quickAnnounce('Reschedule',&quot;Tonight’s race has been rescheduled. Stay tuned for the new date.&quot;)">&#128197; Rescheduled</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">New Announcement</div>
+      <div class="form-grid">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Message</label>
+          <textarea id="ann-msg" rows="3" style="background:var(--bg);border:1px solid var(--bdr);border-radius:6px;padding:9px 12px;font-family:'Barlow',sans-serif;font-size:14px;color:var(--text);width:100%;resize:vertical;transition:border-color 0.12s" onfocus="this.style.borderColor='var(--orange)'" onblur="this.style.borderColor='var(--bdr)'" placeholder="Tonight's race is on!"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="ann-type">
+            <option value="General">General</option>
+            <option value="Rain Delay">Rain Delay</option>
+            <option value="Cancellation">Cancellation</option>
+            <option value="Reschedule">Reschedule</option>
+            <option value="All Clear">All Clear</option>
+            <option value="Race Night Reminder">Race Night Reminder</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Active on site</label>
+          <select id="ann-active">
+            <option value="true">Yes — show now</option>
+            <option value="false">No — save hidden</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:14px"><button class="btn btn-primary" onclick="addAnnouncement()">Post Announcement</button></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--bdr);padding-bottom:10px;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0">Active &amp; Recent</div>
+        <button class="btn btn-danger" onclick="deactivateAll()">Deactivate All</button>
+      </div>
+      <div id="ann-list"><em style="color:var(--text2);font-size:13px">Loading...</em></div>
+    </div>
+
   </div>
 
 </div>
@@ -590,6 +655,88 @@
     toast('Profile saved!');
   }
 
+  // ANNOUNCEMENTS
+  function annTimeAgo(dateStr) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 2) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
+
+  async function loadAnnouncements() {
+    const anns = await db.get('announcements', 'select=*&order=created_at.desc&limit=30');
+    const el = document.getElementById('ann-list');
+    if (!anns || !anns.length) { el.innerHTML = '<em style="color:var(--text2);font-size:13px">No announcements yet</em>'; return; }
+    el.innerHTML = anns.map(a => {
+      const statusColor = a.active ? 'var(--green)' : 'var(--text2)';
+      return `<div class="item-row" style="align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:3px">${a.message}</div>
+          <div class="item-meta">${a.type} · ${annTimeAgo(a.created_at)} · <span style="color:${statusColor};font-weight:700">${a.active ? 'Active' : 'Inactive'}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px">
+          <button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="toggleAnnouncement('${a.id}',${a.active})">${a.active ? 'Deactivate' : 'Activate'}</button>
+          <button class="btn btn-danger" onclick="deleteAnnouncement('${a.id}')">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function addAnnouncement() {
+    const message = document.getElementById('ann-msg').value.trim();
+    const type = document.getElementById('ann-type').value;
+    const active = document.getElementById('ann-active').value === 'true';
+    if (!message) { toast('Message is required', true); return; }
+    await db.post('announcements', { message, type, active });
+    toast('Announcement posted!');
+    document.getElementById('ann-msg').value = '';
+    loadAnnouncements();
+  }
+
+  async function quickAnnounce(type, message) {
+    await db.post('announcements', { message, type, active: true });
+    toast(`${type} posted!`);
+    loadAnnouncements();
+  }
+
+  async function allClearAnnounce() {
+    await fetch(`${SUPABASE_URL}/rest/v1/announcements?active=eq.true`, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: false })
+    });
+    await db.post('announcements', { message: "We're back on! Track is good to go. See you tonight!", type: 'All Clear', active: true });
+    toast('All Clear posted — previous announcements deactivated');
+    loadAnnouncements();
+  }
+
+  async function toggleAnnouncement(id, currentlyActive) {
+    await db.patch('announcements', `id=eq.${id}`, { active: !currentlyActive });
+    toast(currentlyActive ? 'Deactivated' : 'Activated');
+    loadAnnouncements();
+  }
+
+  async function deleteAnnouncement(id) {
+    if (!confirm('Delete this announcement?')) return;
+    await db.del('announcements', id);
+    toast('Deleted');
+    loadAnnouncements();
+  }
+
+  async function deactivateAll() {
+    if (!confirm('Deactivate all announcements?')) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/announcements?active=eq.true`, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: false })
+    });
+    toast('All announcements deactivated');
+    loadAnnouncements();
+  }
+
   // IMPORT / EXPORT
   const POINTS_SCALE = [35,32,29,26,23,20,18,16,14,12,10,9,8,7,6,5,4,3,2,1];
   let _importState = null;
@@ -778,6 +925,7 @@
   loadRecordList();
   loadVideoList();
   loadProfileDriverSelect();
+  loadAnnouncements();
 </script>
 </body>
 </html>

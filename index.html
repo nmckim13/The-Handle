@@ -393,9 +393,25 @@
   /* HOME VIDEO BOARD */
   .video-board { border-radius: 10px; overflow: hidden; border: 1px solid var(--bdr); aspect-ratio: 16/9; background: var(--asphalt); margin-bottom: 16px; }
   .video-board iframe { width: 100%; height: 100%; display: block; border: none; }
+
+  /* ANNOUNCEMENT BANNER */
+  #announce-banner { display: none; width: 100%; padding: 11px 16px; position: relative; }
+  #announce-banner.show { display: flex; align-items: center; gap: 12px; }
+  .ann-rain_delay { background: #0d2440; border-bottom: 2px solid #1c5080; }
+  .ann-cancellation { background: #3a0c0c; border-bottom: 2px solid #7a2020; }
+  .ann-all_clear { background: #0b2e14; border-bottom: 2px solid #1a6030; }
+  .ann-reschedule { background: #2a1600; border-bottom: 2px solid #6a3800; }
+  .ann-general { background: #1e1e1e; border-bottom: 2px solid #3a3a3a; }
+  .ann-race_night_reminder { background: #1a0e30; border-bottom: 2px solid #3a2060; }
+  .announce-msg { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; flex: 1; text-align: center; }
+  .announce-time { font-size: 11px; color: rgba(255,255,255,0.45); white-space: nowrap; flex-shrink: 0; }
+  .announce-close { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 22px; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color 0.1s; }
+  .announce-close:hover { color: #fff; }
 </style>
 </head>
 <body>
+
+<div id="announce-banner" role="alert"></div>
 
 <header class="site-header">
   <img class="header-kart" src="kart.jpg" alt="">
@@ -1574,6 +1590,30 @@ async function loadLatestVideo() {
   }
 }
 
+// ANNOUNCEMENTS
+async function loadAnnouncement() {
+  try {
+    const anns = await get('announcements', 'select=*&active=eq.true&order=created_at.desc&limit=1');
+    if (!anns || !anns.length) return;
+    const ann = anns[0];
+    if (sessionStorage.getItem(`ann_dismissed_${ann.id}`)) return;
+    const diff = Date.now() - new Date(ann.created_at).getTime();
+    const mins = Math.floor(diff / 60000);
+    const ago = mins < 2 ? 'just now' : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.floor(mins/60)}h ago` : `${Math.floor(mins/1440)}d ago`;
+    const typeClass = `ann-${ann.type.toLowerCase().replace(/\s+/g,'_')}`;
+    const banner = document.getElementById('announce-banner');
+    banner.className = `show ${typeClass}`;
+    banner.innerHTML = `<span class="announce-msg">${ann.message}</span><span class="announce-time">Posted ${ago}</span><button class="announce-close" onclick="dismissAnnouncement('${ann.id}')" aria-label="Dismiss">&#215;</button>`;
+  } catch(e) {}
+}
+
+function dismissAnnouncement(id) {
+  sessionStorage.setItem(`ann_dismissed_${id}`, '1');
+  const b = document.getElementById('announce-banner');
+  b.className = ''; b.innerHTML = '';
+}
+
+loadAnnouncement();
 loadHome(); loadDrivers(); loadPoints(); loadSchedule(); loadRecords(); loadVideos(); loadLatestVideo();
 </script>
 </body>
