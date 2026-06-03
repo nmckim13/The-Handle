@@ -935,7 +935,7 @@ async function loadDrivers() {
   g.innerHTML=d.map((dr,i)=>{
     const isMailbox = dr.name==='Newt' || dr.name==='Bubba Hayes';
     const numEl = isMailbox
-      ? `<div style="flex-shrink:0;display:flex;gap:3px;align-items:center;justify-content:center;">
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;background:#fff;border:3px solid #141414;border-radius:8px;padding:4px 8px;flex-shrink:0;"><div style="display:flex;gap:3px;align-items:center;justify-content:center;">
            ${dr.number.toString().split('').map(digit => `
              <div style="
                background:linear-gradient(160deg,#F5C800 0%,#D4A800 50%,#B8900A 100%);
@@ -957,7 +957,7 @@ async function loadDrivers() {
                  line-height:1;
                ">${digit}</span>
              </div>`).join('')}
-         </div>`
+         </div></span>`
       : getDriverNumEl(dr.name.trim(), dr.number, 48);
     const nameEl = `<div class="d-name">${dr.name}</div>`;
     return `<div class="driver-card" onclick="showDriverProfile('${dr.id}')">${numEl}<div>${nameEl}</div></div>`;
@@ -1337,10 +1337,23 @@ const CUSTOM_NUMS = {
 
 function getDriverNumEl(name, number, size=48) {
   const custom = CUSTOM_NUMS[name];
+  const pad = size >= 40 ? '4px 8px' : '2px 5px';
+  const fz = Math.round(size * 0.85);
+
   if (custom) {
-    return `<img src="${custom.src}" alt="${number}" style="height:${size}px;width:auto;object-fit:contain;mix-blend-mode:${custom.blend};vertical-align:middle;">`;
+    // lighten-blend images were designed for dark backgrounds — give them an ink plate
+    const plateBg = custom.blend === 'lighten' ? '#141414' : '#ffffff';
+    const imgFz = Math.round(size * 0.75);
+    return `<span style="display:inline-flex;align-items:center;justify-content:center;background:${plateBg};border:3px solid #141414;border-radius:8px;padding:${pad};vertical-align:middle;flex-shrink:0;line-height:1;">` +
+      `<img src="${custom.src}" alt="${number}" style="height:${size}px;width:auto;object-fit:contain;mix-blend-mode:${custom.blend};display:block;" onerror="this.style.display='none';this.nextSibling.style.display='inline-block';this.closest('span').style.background='#fff'">` +
+      `<span style="display:none;font-family:'Luckiest Guy',cursive;font-size:${imgFz}px;color:#141414;line-height:1;">${number}</span>` +
+      `</span>`;
   }
-  return `<span style="font-family:'Barlow Condensed',sans-serif;font-size:${size}px;font-weight:900;color:#F26419;vertical-align:middle;">${number}</span>`;
+
+  // Plain-number fallback: white plate, dark ink text — readable on any background
+  return `<span style="display:inline-flex;align-items:center;justify-content:center;background:#ffffff;border:3px solid #141414;border-radius:8px;padding:${pad};vertical-align:middle;flex-shrink:0;line-height:1;">` +
+    `<span style="font-family:'Luckiest Guy',cursive;font-size:${fz}px;color:#141414;line-height:1;">${number}</span>` +
+    `</span>`;
 }
 
 async function showDriverProfile(id) {
