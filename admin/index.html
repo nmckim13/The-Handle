@@ -365,10 +365,10 @@
     <div class="card">
       <div class="card-title">Quick Actions</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" style="background:rgba(13,35,64,0.6);color:#7bb8f5;border:1px solid #1c4a80" onclick="quickAnnounce(‘Rain Delay’,&quot;Tonight’s race has been delayed due to weather. Check back for updates.&quot;)">&#127783; Rain Delay</button>
-        <button class="btn" style="background:rgba(58,10,10,0.6);color:#f58080;border:1px solid #6a2020" onclick="quickAnnounce(‘Cancellation’,&quot;Tonight’s race has been cancelled due to weather. We will announce the makeup date soon.&quot;)">&#10060; Race Cancelled</button>
+        <button class="btn" style="background:rgba(13,35,64,0.6);color:#7bb8f5;border:1px solid #1c4a80" onclick="quickAnnounce('Rain Delay',&quot;Tonight's race has been delayed due to weather. Check back for updates.&quot;)">&#127783; Rain Delay</button>
+        <button class="btn" style="background:rgba(58,10,10,0.6);color:#f58080;border:1px solid #6a2020" onclick="quickAnnounce('Cancellation',&quot;Tonight's race has been cancelled due to weather. We will announce the makeup date soon.&quot;)">&#10060; Race Cancelled</button>
         <button class="btn" style="background:rgba(10,42,20,0.6);color:#7bd49c;border:1px solid #1a5c30" onclick="allClearAnnounce()">&#9989; All Clear</button>
-        <button class="btn" style="background:rgba(42,22,0,0.6);color:#f5b040;border:1px solid #5c3800" onclick="quickAnnounce(‘Reschedule’,&quot;Tonight’s race has been rescheduled. Stay tuned for the new date.&quot;)">&#128197; Rescheduled</button>
+        <button class="btn" style="background:rgba(42,22,0,0.6);color:#f5b040;border:1px solid #5c3800" onclick="quickAnnounce('Reschedule',&quot;Tonight's race has been rescheduled. Stay tuned for the new date.&quot;)">&#128197; Rescheduled</button>
       </div>
     </div>
 
@@ -419,37 +419,97 @@
   const SUPABASE_URL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
 
+  // Track-side wifi drops mid-request. A GET is safe to retry blindly; a
+  // failed fetch (no response at all) on a write is retried too, since
+  // callers that care about duplicate-on-retry (e.g. tap-to-finish) pass a
+  // client_ref the server treats as a unique key.
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  async function withRetry(fn, { attempts = 4, isDuplicate } = {}) {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await fn();
+      } catch (e) {
+        if (isDuplicate && isDuplicate(e)) return null; // already succeeded before the response was lost
+        if (i === attempts - 1) throw e;
+        await sleep(500 * Math.pow(2, i)); // 500ms, 1s, 2s
+      }
+    }
+  }
+
   const db = {
     async get(table, query='') {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      return withRetry(async () => {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        });
+        if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
+        return res.json();
       });
-      if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
-      return res.json();
     },
-    async post(table, data) {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
-      return res.json();
+    async post(table, data, opts = {}) {
+      return withRetry(async () => {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
+        return res.json();
+      }, opts);
     },
     async del(table, id) {
-      await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      return withRetry(async () => {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+          method: 'DELETE',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        });
+        if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
+      });
+    },
+    async delWhere(table, query) {
+      return withRetry(async () => {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+          method: 'DELETE',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        });
+        if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
       });
     },
     async patch(table, query, data) {
-      await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+      return withRetry(async () => {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+          method: 'PATCH',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
       });
     }
   };
+
+  // A unique client_ref lets a retried write recognize "this already went
+  // through" (PostgREST returns 409 on the unique index) instead of erroring.
+  const isDuplicateRef = (e) => /duplicate key|already exists|23505/i.test(e.message || '');
+  function newRef() { return (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`); }
+
+  // OFFLINE BANNER
+  function updateOnlineBanner() {
+    let el = document.getElementById('offline-banner');
+    if (!navigator.onLine) {
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'offline-banner';
+        el.style.cssText = 'position:sticky;top:0;z-index:200;background:var(--red);color:#fff;text-align:center;font-weight:900;font-size:13px;padding:8px;letter-spacing:0.5px';
+        el.textContent = '⚠ Offline — actions will retry automatically when connection returns';
+        document.body.prepend(el);
+      }
+    } else if (el) {
+      el.remove();
+    }
+  }
+  window.addEventListener('online', updateOnlineBanner);
+  window.addEventListener('offline', updateOnlineBanner);
+  updateOnlineBanner();
 
   // Any unhandled async error (e.g. a Race Night table that hasn't been
   // migrated yet) surfaces as a toast instead of failing silently.
@@ -1015,13 +1075,28 @@
     return { race, entries, entryMap, sessions, lineupsBySession, sresultsBySession, officialResults };
   }
 
+  // Prevents a double-tap / slow-network double-submit from creating a
+  // second copy of a once-per-stage action (pill draw, B-Main, feature,
+  // post official). Keyed by action name since only one stage action is
+  // ever valid at a time for a given race night.
+  const _rnBusy = new Set();
+  async function rnGuarded(key, btn, fn) {
+    if (_rnBusy.has(key)) return;
+    _rnBusy.add(key);
+    if (btn) btn.disabled = true;
+    try { await fn(); }
+    finally { _rnBusy.delete(key); if (btn) btn.disabled = false; }
+  }
+
   // CHECK-IN
   async function rnAddWalkup() {
     const name = document.getElementById('rn-walkup-name').value.trim();
     const car_number = document.getElementById('rn-walkup-number').value.trim();
     const color = document.getElementById('rn-walkup-color').value.trim() || '#F26419';
     if (!name || !car_number) { toast('Name and car number required', true); return; }
-    await db.post('entries', { race_id: RN.raceId, name, car_number, color, status: 'checked_in' });
+    const dupes = await db.get('entries', `race_id=eq.${RN.raceId}&car_number=eq.${encodeURIComponent(car_number)}&status=neq.withdrawn`);
+    if (dupes.length && !confirm(`#${car_number} is already checked in as ${dupes[0].name}. Add another entry with the same number anyway?`)) return;
+    await db.post('entries', { race_id: RN.raceId, name, car_number, color, status: 'checked_in', client_ref: newRef() });
     document.getElementById('rn-walkup-name').value = '';
     document.getElementById('rn-walkup-number').value = '';
     toast(`${name} checked in!`);
@@ -1031,37 +1106,49 @@
   async function rnWithdraw(entryId) { await db.patch('entries', `id=eq.${entryId}`, { status: 'withdrawn' }); rnRenderAll(); }
 
   // PILL DRAW
-  async function rnPillDraw() {
+  async function rnPillDraw(btn) {
     if (!RN.raceId) return;
-    const heatSize = parseInt(document.getElementById('rn-heat-size').value) || 8;
-    const laps = parseInt(document.getElementById('rn-heat-laps').value) || 8;
-    const entries = await db.get('entries', `race_id=eq.${RN.raceId}&status=eq.checked_in&order=created_at.asc`);
-    if (!entries.length) { toast('No checked-in drivers yet', true); return; }
-    const shuffled = shuffle(entries);
-    const heats = [];
-    for (let i = 0; i < shuffled.length; i += heatSize) heats.push(shuffled.slice(i, i + heatSize));
-    let firstSessionId = null;
-    for (let i = 0; i < heats.length; i++) {
-      const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'heat', session_number: i + 1, laps_scheduled: laps, status: 'lineup_set' });
-      if (!firstSessionId) firstSessionId = session.id;
-      await db.post('lineups', heats[i].map((e, idx) => ({ session_id: session.id, entry_id: e.id, starting_position: idx + 1 })));
-    }
-    await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'heat', session_id: firstSessionId });
-    toast(`${heats.length} heat${heats.length !== 1 ? 's' : ''} drawn!`);
-    rnRenderAll();
+    await rnGuarded('pillDraw', btn, async () => {
+      const state = await rnFetchState(RN.raceId);
+      if (state.sessions.some(s => s.session_type === 'heat')) { toast('Heats already drawn for this race night', true); return; }
+      const heatSize = parseInt(document.getElementById('rn-heat-size').value) || 8;
+      const laps = parseInt(document.getElementById('rn-heat-laps').value) || 8;
+      const entries = await db.get('entries', `race_id=eq.${RN.raceId}&status=eq.checked_in&order=created_at.asc`);
+      if (!entries.length) { toast('No checked-in drivers yet', true); return; }
+      const shuffled = shuffle(entries);
+      const heats = [];
+      for (let i = 0; i < shuffled.length; i += heatSize) heats.push(shuffled.slice(i, i + heatSize));
+      if (!confirm(`Draw ${heats.length} heat${heats.length !== 1 ? 's' : ''} from ${entries.length} checked-in drivers? This can't be undone from here.`)) return;
+      let firstSessionId = null;
+      for (let i = 0; i < heats.length; i++) {
+        const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'heat', session_number: i + 1, laps_scheduled: laps, status: 'lineup_set' });
+        if (!firstSessionId) firstSessionId = session.id;
+        await db.post('lineups', heats[i].map((e, idx) => ({ session_id: session.id, entry_id: e.id, starting_position: idx + 1 })));
+      }
+      await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'heat', session_id: firstSessionId });
+      toast(`${heats.length} heat${heats.length !== 1 ? 's' : ''} drawn!`);
+      rnRenderAll();
+    });
   }
 
   // HEAT / B-MAIN / FEATURE — shared tap-to-finish
-  async function rnTapFinish(sessionId, entryId) {
-    const existing = await db.get('session_results', `session_id=eq.${sessionId}&order=finishing_position.desc&limit=1`);
-    const nextPos = (existing[0]?.finishing_position || 0) + 1;
-    await db.post('session_results', { session_id: sessionId, entry_id: entryId, finishing_position: nextPos });
-    rnRenderAll();
+  async function rnTapFinish(sessionId, entryId, btn) {
+    if (btn) btn.disabled = true;
+    const ref = newRef();
+    try {
+      const existing = await db.get('session_results', `session_id=eq.${sessionId}&order=finishing_position.desc&limit=1`);
+      const nextPos = (existing[0]?.finishing_position || 0) + 1;
+      await db.post('session_results', { session_id: sessionId, entry_id: entryId, finishing_position: nextPos, client_ref: ref }, { isDuplicate: isDuplicateRef });
+    } finally {
+      rnRenderAll();
+    }
   }
-  async function rnUndoLast(sessionId) {
-    const rows = await db.get('session_results', `session_id=eq.${sessionId}&order=finishing_position.desc&limit=1`);
-    if (!rows.length) return;
-    await db.del('session_results', rows[0].id);
+  // Removes one finisher (not just the last tap) and closes the gap in
+  // finishing order so positions stay contiguous.
+  async function rnRemoveFinisher(sessionId, resultId, position) {
+    await db.del('session_results', resultId);
+    const later = await db.get('session_results', `session_id=eq.${sessionId}&finishing_position=gt.${position}&order=finishing_position.asc`);
+    for (const r of later) await db.patch('session_results', `id=eq.${r.id}`, { finishing_position: r.finishing_position - 1 });
     rnRenderAll();
   }
   async function rnCompleteSession(sessionId) {
@@ -1073,50 +1160,69 @@
     rnRenderAll();
   }
 
-  // B-MAIN
-  async function rnSetupBMain() {
-    const transferN = parseInt(document.getElementById('rn-transfer-count').value) || 99;
-    const laps = parseInt(document.getElementById('rn-bmain-laps').value) || 8;
-    const state = await rnFetchState(RN.raceId);
-    const heatSessions = state.sessions.filter(s => s.session_type === 'heat');
-    if (!heatSessions.length || heatSessions.some(s => s.status !== 'completed')) { toast('Finish all heats first', true); return; }
-    const pool = [];
-    heatSessions.forEach(hs => {
-      (state.sresultsBySession[hs.id] || []).filter(r => r.finishing_position > transferN).forEach(r => pool.push(r));
-    });
-    if (!pool.length) { toast('Everyone transfers — no B-Main needed', false); return; }
-    pool.sort((a, b) => a.finishing_position - b.finishing_position);
-    const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'b_main', session_number: 1, laps_scheduled: laps, status: 'lineup_set' });
-    await db.post('lineups', pool.map((r, idx) => ({ session_id: session.id, entry_id: r.entry_id, starting_position: idx + 1 })));
-    await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'b_main', session_id: session.id });
-    toast('B-Main set up!');
+  // FLAG STATE / LAP COUNTER
+  const FLAG_LABEL = { green: '🟢 Green', caution: '🟡 Caution', red: '🔴 Red', checkered: '🏁 Checkered' };
+  async function rnSetFlag(sessionId, flag_state) {
+    await db.patch('race_sessions', `id=eq.${sessionId}`, { flag_state });
+    rnRenderAll();
+  }
+  async function rnSetLap(sessionId, current_lap) {
+    await db.patch('race_sessions', `id=eq.${sessionId}`, { current_lap: Math.max(0, current_lap) });
     rnRenderAll();
   }
 
-  // FEATURE
-  async function rnSetupFeature() {
-    const laps = parseInt(document.getElementById('rn-feature-laps').value) || 15;
-    const state = await rnFetchState(RN.raceId);
-    const heatSessions = state.sessions.filter(s => s.session_type === 'heat');
-    const bmain = state.sessions.find(s => s.session_type === 'b_main');
-    if (heatSessions.some(s => s.status !== 'completed')) { toast('Finish all heats first', true); return; }
-    if (bmain && bmain.status !== 'completed') { toast('Finish the B-Main first', true); return; }
-
-    const bmainEntryIds = bmain ? new Set((state.lineupsBySession[bmain.id] || []).map(l => l.entry_id)) : new Set();
-    const direct = [];
-    heatSessions.forEach(hs => {
-      (state.sresultsBySession[hs.id] || []).forEach(r => { if (!bmainEntryIds.has(r.entry_id)) direct.push(r); });
+  // B-MAIN
+  async function rnSetupBMain(btn) {
+    await rnGuarded('bmain', btn, async () => {
+      const state = await rnFetchState(RN.raceId);
+      if (state.sessions.some(s => s.session_type === 'b_main')) { toast('B-Main already set up', true); return; }
+      const transferN = parseInt(document.getElementById('rn-transfer-count').value) || 99;
+      const laps = parseInt(document.getElementById('rn-bmain-laps').value) || 8;
+      const heatSessions = state.sessions.filter(s => s.session_type === 'heat');
+      if (!heatSessions.length || heatSessions.some(s => s.status !== 'completed')) { toast('Finish all heats first', true); return; }
+      const pool = [];
+      heatSessions.forEach(hs => {
+        (state.sresultsBySession[hs.id] || []).filter(r => r.finishing_position > transferN).forEach(r => pool.push(r));
+      });
+      if (!pool.length) { toast('Everyone transfers — no B-Main needed', false); return; }
+      pool.sort((a, b) => a.finishing_position - b.finishing_position);
+      if (!confirm(`Set up B-Main with ${pool.length} driver${pool.length !== 1 ? 's' : ''}?`)) return;
+      const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'b_main', session_number: 1, laps_scheduled: laps, status: 'lineup_set' });
+      await db.post('lineups', pool.map((r, idx) => ({ session_id: session.id, entry_id: r.entry_id, starting_position: idx + 1 })));
+      await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'b_main', session_id: session.id });
+      toast('B-Main set up!');
+      rnRenderAll();
     });
-    direct.sort((a, b) => a.finishing_position - b.finishing_position);
-    const rest = bmain ? (state.sresultsBySession[bmain.id] || []).slice().sort((a, b) => a.finishing_position - b.finishing_position) : [];
-    const order = [...direct, ...rest];
-    if (!order.length) { toast('Run the heats (and B-Main, if any) first', true); return; }
+  }
 
-    const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'feature', session_number: 1, laps_scheduled: laps, status: 'lineup_set' });
-    await db.post('lineups', order.map((r, idx) => ({ session_id: session.id, entry_id: r.entry_id, starting_position: idx + 1 })));
-    await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'feature', session_id: session.id });
-    toast('Feature lineup set!');
-    rnRenderAll();
+  // FEATURE
+  async function rnSetupFeature(btn) {
+    await rnGuarded('feature', btn, async () => {
+      const state = await rnFetchState(RN.raceId);
+      if (state.sessions.some(s => s.session_type === 'feature')) { toast('Feature already assembled', true); return; }
+      const laps = parseInt(document.getElementById('rn-feature-laps').value) || 15;
+      const heatSessions = state.sessions.filter(s => s.session_type === 'heat');
+      const bmain = state.sessions.find(s => s.session_type === 'b_main');
+      if (heatSessions.some(s => s.status !== 'completed')) { toast('Finish all heats first', true); return; }
+      if (bmain && bmain.status !== 'completed') { toast('Finish the B-Main first', true); return; }
+
+      const bmainEntryIds = bmain ? new Set((state.lineupsBySession[bmain.id] || []).map(l => l.entry_id)) : new Set();
+      const direct = [];
+      heatSessions.forEach(hs => {
+        (state.sresultsBySession[hs.id] || []).forEach(r => { if (!bmainEntryIds.has(r.entry_id)) direct.push(r); });
+      });
+      direct.sort((a, b) => a.finishing_position - b.finishing_position);
+      const rest = bmain ? (state.sresultsBySession[bmain.id] || []).slice().sort((a, b) => a.finishing_position - b.finishing_position) : [];
+      const order = [...direct, ...rest];
+      if (!order.length) { toast('Run the heats (and B-Main, if any) first', true); return; }
+      if (!confirm(`Assemble the ${order.length}-car feature lineup?`)) return;
+
+      const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'feature', session_number: 1, laps_scheduled: laps, status: 'lineup_set' });
+      await db.post('lineups', order.map((r, idx) => ({ session_id: session.id, entry_id: r.entry_id, starting_position: idx + 1 })));
+      await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'feature', session_id: session.id });
+      toast('Feature lineup set!');
+      rnRenderAll();
+    });
   }
 
   async function rnGoLive(sessionId) {
@@ -1127,18 +1233,19 @@
   }
 
   // OFFICIAL RESULTS
-  async function rnPostOfficial() {
+  async function rnPostOfficial(btn) {
+    await rnGuarded('postOfficial', btn, async () => { await rnPostOfficialInner(); });
+  }
+  async function rnPostOfficialInner() {
     const state = await rnFetchState(RN.raceId);
     const feature = state.sessions.find(s => s.session_type === 'feature');
     if (!feature) { toast('No feature set up yet', true); return; }
     const results = (state.sresultsBySession[feature.id] || []).slice().sort((a, b) => a.finishing_position - b.finishing_position);
     if (!results.length) { toast('No feature finishers recorded yet', true); return; }
+    if (!confirm(`Post official results for ${results.length} finishers? This updates season standings and driver records.`)) return;
 
     // idempotent: clear any previous official results for this race before reposting
-    await fetch(`${SUPABASE_URL}/rest/v1/results?race_id=eq.${RN.raceId}`, {
-      method: 'DELETE',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-    });
+    await db.delWhere('results', `race_id=eq.${RN.raceId}`);
 
     const driversList = await db.get('drivers', 'select=*');
     const driverByName = {};
@@ -1158,11 +1265,7 @@
       }
       toInsert.push({ race_id: RN.raceId, driver_id: driver.id, position: r.finishing_position, points: calcPoints(r.finishing_position) });
       const isWin = r.finishing_position === 1;
-      await fetch(`${SUPABASE_URL}/rest/v1/drivers?id=eq.${driver.id}`, {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ starts: driver.starts + 1, wins: driver.wins + (isWin ? 1 : 0) })
-      });
+      await db.patch('drivers', `id=eq.${driver.id}`, { starts: driver.starts + 1, wins: driver.wins + (isWin ? 1 : 0) });
     }
 
     await db.post('results', toInsert);
@@ -1175,6 +1278,155 @@
     populateSelects();
     loadRaceList();
     rnRenderAll();
+  }
+
+  // LAPMONITOR IMPORT
+  let _lmState = null; // { sessionId, headers, rows, mapping, matched }
+
+  function lmGuessColumn(headers, keywords) {
+    const lower = headers.map(h => h.toLowerCase());
+    for (const kw of keywords) {
+      const idx = lower.findIndex(h => h.includes(kw));
+      if (idx !== -1) return headers[idx];
+    }
+    return '';
+  }
+  function lmParseLapTime(raw) {
+    if (!raw) return null;
+    const s = String(raw).trim().replace(/[^0-9:.]/g, '');
+    if (!s) return null;
+    if (s.includes(':')) {
+      const [m, sec] = s.split(':');
+      return (parseFloat(m) || 0) * 60 + (parseFloat(sec) || 0);
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  }
+  const lmNormalizeCarNumber = v => String(v || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+
+  async function handleLapMonitorCSV(event) {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    const sessionId = document.getElementById('lm-session-select').value;
+    if (!sessionId) { toast('Select a session to import into first', true); return; }
+
+    const text = await file.text();
+    const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
+    if (lines.length < 2) { toast('CSV appears empty or invalid', true); return; }
+    const headers = splitCSVLine(lines[0]).map(h => h.trim());
+    const rows = lines.slice(1).map(line => {
+      const fields = splitCSVLine(line);
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = (fields[i] || '').trim(); });
+      return obj;
+    }).filter(r => Object.values(r).some(v => v));
+    if (!rows.length) { toast('CSV appears empty or invalid', true); return; }
+
+    _lmState = {
+      sessionId, headers, rows,
+      mapping: {
+        car: lmGuessColumn(headers, ['car', 'kart', 'number', '#']),
+        name: lmGuessColumn(headers, ['name', 'driver']),
+        position: lmGuessColumn(headers, ['pos', 'rank', 'place', 'finish']),
+        lap: lmGuessColumn(headers, ['best', 'fastest', 'lap time', 'laptime', 'time'])
+      }
+    };
+    renderLapMonitorMapping();
+  }
+
+  function renderLapMonitorMapping() {
+    const s = _lmState;
+    const area = document.getElementById('lm-import-area');
+    const opts = selected => '<option value="">— none —</option>' + s.headers.map(h => `<option value="${h}" ${h === selected ? 'selected' : ''}>${h}</option>`).join('');
+    area.innerHTML = `
+      <div class="form-grid" style="margin-top:12px">
+        <div class="form-group"><label>Car # column</label><select id="lm-map-car" onchange="lmUpdateMapping()">${opts(s.mapping.car)}</select></div>
+        <div class="form-group"><label>Driver name column (fallback match)</label><select id="lm-map-name" onchange="lmUpdateMapping()">${opts(s.mapping.name)}</select></div>
+        <div class="form-group"><label>Finish position column (optional)</label><select id="lm-map-position" onchange="lmUpdateMapping()">${opts(s.mapping.position)}</select></div>
+        <div class="form-group"><label>Best lap time column (optional)</label><select id="lm-map-lap" onchange="lmUpdateMapping()">${opts(s.mapping.lap)}</select></div>
+      </div>
+      <div id="lm-preview-wrap" style="margin-top:12px"></div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="confirmLapMonitorImport(this)">Confirm Import</button>
+        <button class="btn btn-outline" onclick="cancelLapMonitorImport()">Cancel</button>
+      </div>
+    `;
+    lmRenderPreview();
+  }
+
+  function lmUpdateMapping() {
+    _lmState.mapping = {
+      car: document.getElementById('lm-map-car').value,
+      name: document.getElementById('lm-map-name').value,
+      position: document.getElementById('lm-map-position').value,
+      lap: document.getElementById('lm-map-lap').value
+    };
+    lmRenderPreview();
+  }
+
+  async function lmRenderPreview() {
+    const s = _lmState;
+    const wrap = document.getElementById('lm-preview-wrap');
+    if (!s.mapping.car && !s.mapping.name) { wrap.innerHTML = '<p style="color:var(--text2);font-size:13px">Map at least a car # or name column to preview matches.</p>'; return; }
+
+    const lineups = await db.get('lineups', `select=*,entries(id,name,car_number)&session_id=eq.${s.sessionId}`);
+    const byCarNum = {}, byName = {};
+    lineups.forEach(l => {
+      if (l.entries) {
+        byCarNum[lmNormalizeCarNumber(l.entries.car_number)] = l.entries;
+        byName[l.entries.name.toLowerCase().trim()] = l.entries;
+      }
+    });
+
+    const matched = s.rows.map((row, i) => {
+      const carVal = s.mapping.car ? row[s.mapping.car] : '';
+      const nameVal = s.mapping.name ? row[s.mapping.name] : '';
+      const entry = (carVal && byCarNum[lmNormalizeCarNumber(carVal)]) || (nameVal && byName[nameVal.toLowerCase().trim()]) || null;
+      const position = s.mapping.position ? (parseInt(row[s.mapping.position]) || i + 1) : i + 1;
+      const lapSeconds = s.mapping.lap ? lmParseLapTime(row[s.mapping.lap]) : null;
+      return { row, entry, position, lapSeconds };
+    });
+    s.matched = matched;
+
+    const unmatchedCount = matched.filter(m => !m.entry).length;
+    wrap.innerHTML = `
+      ${unmatchedCount ? `<p style="color:var(--red);font-size:12px;font-weight:800;margin-bottom:8px">${unmatchedCount} row(s) couldn't be matched to a driver in this session and will be skipped.</p>` : ''}
+      <table class="preview-table"><thead><tr><th>Pos</th><th>Driver</th><th>Best Lap</th><th>Match</th></tr></thead><tbody>
+        ${matched.map(m => `<tr class="${m.entry ? 'row-ok' : 'row-error'}"><td>${m.position}</td><td>${m.entry ? '#' + m.entry.car_number + ' ' + m.entry.name : (m.row[s.mapping.car || s.mapping.name] || '?')}</td><td>${m.lapSeconds != null ? m.lapSeconds.toFixed(3) + 's' : '—'}</td><td>${m.entry ? '✓' : 'No match'}</td></tr>`).join('')}
+      </tbody></table>
+    `;
+  }
+
+  async function confirmLapMonitorImport(btn) {
+    const s = _lmState;
+    if (!s || !s.matched) { toast('Upload a CSV first', true); return; }
+    const matched = s.matched.filter(m => m.entry);
+    if (!matched.length) { toast('No matched rows to import', true); return; }
+    if (!confirm(`Import ${matched.length} result${matched.length !== 1 ? 's' : ''} into this session? This overwrites any existing finishing order for these drivers.`)) return;
+    btn.disabled = true;
+    try {
+      const existing = await db.get('session_results', `session_id=eq.${s.sessionId}`);
+      const existingByEntry = {};
+      existing.forEach(r => { existingByEntry[r.entry_id] = r; });
+      for (const m of matched) {
+        const body = { finishing_position: m.position, best_lap_seconds: m.lapSeconds };
+        const prior = existingByEntry[m.entry.id];
+        if (prior) await db.patch('session_results', `id=eq.${prior.id}`, body);
+        else await db.post('session_results', { session_id: s.sessionId, entry_id: m.entry.id, ...body, client_ref: newRef() }, { isDuplicate: isDuplicateRef });
+      }
+      toast('LapMonitor results imported!');
+      cancelLapMonitorImport();
+      rnRenderAll();
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function cancelLapMonitorImport() {
+    _lmState = null;
+    const area = document.getElementById('lm-import-area');
+    if (area) area.innerHTML = '';
   }
 
   // RENDER
@@ -1191,17 +1443,33 @@
     const stillRacing = lineup.filter(l => !finishedIds.has(l.entry_id));
     const finished = results.slice().sort((a, b) => a.finishing_position - b.finishing_position);
     const liveTag = session.status === 'in_progress' ? ' <span style="color:var(--red);font-size:11px;letter-spacing:1px">● LIVE</span>' : '';
+    const flag = session.flag_state || 'green';
 
     const finishedHtml = finished.length ? `<ol style="margin:10px 0 0 20px;font-size:13px;font-weight:700">
-      ${finished.map(r => `<li style="margin-bottom:4px;color:${r.entry?.color || 'var(--white)'}">#${r.entry?.car_number || '?'} ${r.entry?.name || '—'}</li>`).join('')}
+      ${finished.map(r => `<li style="margin-bottom:4px;color:${r.entry?.color || 'var(--white)'};display:flex;align-items:center;gap:8px;justify-content:space-between;max-width:340px">
+        <span>#${r.entry?.car_number || '?'} ${r.entry?.name || '—'}${r.best_lap_seconds != null ? ` <span style="color:var(--text2);font-weight:600">— ${Number(r.best_lap_seconds).toFixed(3)}s</span>` : ''}</span>
+        ${session.status !== 'completed' ? `<button class="btn btn-outline" style="padding:1px 7px;font-size:11px" title="Remove this finisher" onclick="rnRemoveFinisher('${session.id}','${r.id}',${r.finishing_position})">✕</button>` : ''}
+      </li>`).join('')}
     </ol>` : '';
+
+    const flagHtml = session.status !== 'completed' ? `
+      <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:11px;color:var(--text2);font-weight:800;text-transform:uppercase;letter-spacing:1px">Flag:</span>
+        ${Object.entries(FLAG_LABEL).map(([k, label]) => `<button class="btn ${flag === k ? 'btn-primary' : 'btn-outline'}" style="padding:4px 10px;font-size:12px" onclick="rnSetFlag('${session.id}','${k}')">${label}</button>`).join('')}
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:var(--text2);font-weight:800;text-transform:uppercase;letter-spacing:1px">Lap:</span>
+        <button class="btn btn-outline" style="padding:3px 10px" onclick="rnSetLap('${session.id}',${(session.current_lap || 0) - 1})">−</button>
+        <span style="font-size:14px;font-weight:900">${session.current_lap || 0} / ${session.laps_scheduled || '?'}</span>
+        <button class="btn btn-outline" style="padding:3px 10px" onclick="rnSetLap('${session.id}',${(session.current_lap || 0) + 1})">+</button>
+      </div>
+    ` : '';
 
     const tapHtml = session.status !== 'completed' ? `
       ${stillRacing.length ? `<div class="rn-tap-grid" style="margin-top:10px">
-        ${stillRacing.map(l => `<button class="rn-tap-btn" onclick="rnTapFinish('${session.id}','${l.entry_id}')">#${l.entry?.car_number || '?'} ${l.entry?.name || '—'}</button>`).join('')}
+        ${stillRacing.map(l => `<button class="rn-tap-btn" onclick="rnTapFinish('${session.id}','${l.entry_id}',this)">#${l.entry?.car_number || '?'} ${l.entry?.name || '—'}</button>`).join('')}
       </div>` : ''}
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-        ${results.length ? `<button class="btn btn-outline" onclick="rnUndoLast('${session.id}')">↺ Undo Last Finisher</button>` : ''}
         <button class="btn btn-primary" onclick="rnCompleteSession('${session.id}')">Mark ${rnSessionTitle(session)} Complete</button>
       </div>
     ` : `<button class="btn btn-outline" style="margin-top:10px" onclick="rnReopenSession('${session.id}')">Reopen for corrections</button>`;
@@ -1209,6 +1477,7 @@
     return `<div class="card">
       <div class="card-title">${rnSessionTitle(session)}${liveTag} <span style="color:var(--text2);font-weight:700;font-size:12px;text-transform:none;letter-spacing:0">— ${lineup.length} cars, ${session.laps_scheduled || '?'} laps</span></div>
       ${finishedHtml}
+      ${flagHtml}
       ${tapHtml}
     </div>`;
   }
@@ -1249,6 +1518,25 @@
     </div>`;
   }
 
+  // LapMonitor has no live API (see migration notes), so results come in via
+  // a CSV export from the app. This mirrors the season-results CSV importer
+  // above, but writes into session_results for a specific heat/B-Main/feature.
+  function rnLapMonitorImportCard(state) {
+    const sessOpts = state.sessions.map(s => `<option value="${s.id}">${rnSessionTitle(s)}</option>`).join('');
+    return `<div class="card">
+      <div class="card-title">Import LapMonitor Results</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Export a session's results from the LapMonitor app as CSV, then import it here to set official finishing order and lap times instead of tapping cars in one by one.</p>
+      <div class="form-grid">
+        <div class="form-group"><label>Session</label><select id="lm-session-select">${sessOpts}</select></div>
+        <div class="form-group"><label>&nbsp;</label>
+          <input type="file" id="lm-csv-upload" accept=".csv" style="display:none" onchange="handleLapMonitorCSV(event)">
+          <button class="btn btn-outline" onclick="document.getElementById('lm-csv-upload').click()">Upload CSV</button>
+        </div>
+      </div>
+      <div id="lm-import-area"></div>
+    </div>`;
+  }
+
   function rnPillDrawCard(count) {
     return `<div class="card">
       <div class="card-title">Pill Draw</div>
@@ -1256,7 +1544,7 @@
       <div class="form-grid">
         <div class="form-group"><label>Max cars per heat</label><input id="rn-heat-size" type="number" value="8"></div>
         <div class="form-group"><label>Heat laps</label><input id="rn-heat-laps" type="number" value="8"></div>
-        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnPillDraw()">🎲 Draw Heats</button></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnPillDraw(this)">🎲 Draw Heats</button></div>
       </div>
     </div>`;
   }
@@ -1268,7 +1556,7 @@
       <div class="form-grid">
         <div class="form-group"><label>Transfer cutoff (top N per heat go straight to feature)</label><input id="rn-transfer-count" type="number" value="99"></div>
         <div class="form-group"><label>B-Main laps</label><input id="rn-bmain-laps" type="number" value="8"></div>
-        <div class="form-group"><label>&nbsp;</label><button class="btn btn-outline" onclick="rnSetupBMain()">Set Up B-Main</button></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-outline" onclick="rnSetupBMain(this)">Set Up B-Main</button></div>
       </div>
     </div>`;
   }
@@ -1278,7 +1566,7 @@
       <div class="card-title">Assemble Feature Lineup</div>
       <div class="form-grid">
         <div class="form-group"><label>Feature laps</label><input id="rn-feature-laps" type="number" value="15"></div>
-        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnSetupFeature()">Assemble Feature Lineup</button></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnSetupFeature(this)">Assemble Feature Lineup</button></div>
       </div>
     </div>`;
   }
@@ -1293,7 +1581,7 @@
     return `<div class="card" style="${alreadyPosted ? 'background:rgba(45,139,69,0.06);border-color:rgba(45,139,69,0.3)' : ''}">
       <div class="card-title">Official Results${alreadyPosted ? ' <span style="color:var(--green);font-size:12px">✓ Posted</span>' : ''}</div>
       <table class="preview-table"><thead><tr><th>Pos</th><th>Driver</th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>
-      <div style="margin-top:12px"><button class="btn btn-primary" onclick="rnPostOfficial()">${alreadyPosted ? 'Re-Post Official Results' : 'Post Official Results'}</button></div>
+      <div style="margin-top:12px"><button class="btn btn-primary" onclick="rnPostOfficial(this)">${alreadyPosted ? 'Re-Post Official Results' : 'Post Official Results'}</button></div>
     </div>`;
   }
 
@@ -1310,6 +1598,7 @@
     if (!state.race) { body.innerHTML = '<p style="color:var(--text2);font-size:13px">Race not found.</p>'; return; }
 
     let html = rnRaceHeaderCard(state.race) + rnCheckInCard(state);
+    if (state.sessions.length) html += rnLapMonitorImportCard(state);
 
     const checkedIn = state.entries.filter(e => e.status === 'checked_in');
     const heatSessions = state.sessions.filter(s => s.session_type === 'heat');

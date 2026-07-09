@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YardKartz — Big Screen</title>
+<link rel="icon" href="/logo.png">
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --red: #E0231C; --yellow: #F4E40F; --white: #ffffff;
+    --text2: #9a9a9a; --line: #2a2a2a; --bg: #0a0a0a; --panel: #141414; --panel-2: #1c1c1c;
+    --green: #2D8B45;
+  }
+  html, body { background: var(--bg); color: var(--white); font-family: 'Archivo', sans-serif; height: 100%; overflow: hidden; }
+  .kiosk { display: grid; grid-template-columns: 1.15fr 1fr; grid-template-rows: 1fr; height: 100vh; width: 100vw; }
+  @media (max-aspect-ratio: 1/1) { .kiosk { grid-template-columns: 1fr; grid-template-rows: 1.15fr 1fr; } }
+
+  .board { padding: 28px 32px; overflow: hidden; display: flex; flex-direction: column; gap: 16px; border-right: 2px solid var(--line); }
+  @media (max-aspect-ratio: 1/1) { .board { border-right: none; border-bottom: 2px solid var(--line); } }
+
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand img { height: 52px; width: auto; }
+  .brand-name { font-size: 26px; font-weight: 900; color: var(--yellow); letter-spacing: 1px; }
+  .brand-sub { font-size: 15px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: 2px; }
+
+  .flag-banner { display: none; border-radius: 14px; padding: 18px 24px; text-align: center; font-size: 40px; font-weight: 900; letter-spacing: 1px; }
+  .flag-banner.show { display: block; }
+
+  .stage-card { background: var(--panel); border: 2px solid var(--red); border-radius: 14px; padding: 20px 26px; }
+  .stage-title { font-size: 34px; font-weight: 900; display: flex; align-items: center; gap: 12px; }
+  .stage-title .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--red); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .stage-meta { font-size: 20px; font-weight: 700; color: var(--text2); margin-top: 6px; }
+  .lap-line { font-size: 28px; font-weight: 900; margin-top: 10px; color: var(--yellow); }
+
+  .leaderboard-wrap { flex: 1; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px 0; }
+  table.board-tbl { width: 100%; border-collapse: collapse; }
+  table.board-tbl th { font-size: 15px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); text-align: left; padding: 10px 24px; border-bottom: 1px solid var(--line); }
+  table.board-tbl td { font-size: 28px; font-weight: 800; padding: 12px 24px; border-bottom: 1px solid var(--line); }
+  table.board-tbl tr:last-child td { border-bottom: none; }
+  table.board-tbl td.pos { color: var(--yellow); width: 70px; }
+  .still-racing { font-size: 18px; font-weight: 700; color: var(--text2); padding: 16px 24px; }
+  .empty-state { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 26px; font-weight: 800; color: var(--text2); text-align: center; padding: 40px; }
+
+  .timing-pane { position: relative; background: var(--panel-2); }
+  .timing-label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--text2); background: rgba(10,10,10,0.75); padding: 5px 14px; border-radius: 999px; z-index: 2; }
+  .timing-pane iframe { width: 100%; height: 100%; border: none; display: block; }
+</style>
+</head>
+<body>
+
+<div class="kiosk">
+  <div class="board">
+    <div class="brand">
+      <img src="logo.png" alt="YardKartz">
+      <div>
+        <div class="brand-name">YardKartz</div>
+        <div class="brand-sub">The Handle — Race Night</div>
+      </div>
+    </div>
+
+    <div class="flag-banner" id="flag-banner"></div>
+
+    <div class="stage-card" id="stage-card">
+      <div class="stage-title"><span class="dot"></span><span id="stage-title-text">Loading…</span></div>
+      <div class="stage-meta" id="stage-meta"></div>
+      <div class="lap-line" id="lap-line"></div>
+    </div>
+
+    <div class="leaderboard-wrap" id="leaderboard-wrap">
+      <div class="empty-state">Waiting for race night to go live…</div>
+    </div>
+  </div>
+
+  <div class="timing-pane">
+    <div class="timing-label">Live Timing — LapMonitor</div>
+    <iframe src="https://lapmonitor.live/512060739" allowfullscreen></iframe>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
+const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
+
+const get = async (table, q='') => {
+  const r = await fetch(`${SURL}/rest/v1/${table}?${q}`, {headers:{'apikey':SKEY,'Authorization':`Bearer ${SKEY}`}});
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+};
+
+const FLAG_BANNER = {
+  green: null,
+  caution: { bg: '#F4E40F', fg: '#141414', label: '🟡 CAUTION' },
+  red: { bg: '#E0231C', fg: '#fff', label: '🔴 RED FLAG' },
+  checkered: { bg: '#fff', fg: '#141414', label: '🏁 CHECKERED FLAG' }
+};
+const STAGE_LABEL = { check_in: 'Check-In', pill_draw: 'Pill Draw', heat: 'Heat Racing', b_main: 'B-Main', feature: 'Feature', complete: 'Complete' };
+
+async function refresh(){
+  const stageCard = document.getElementById('stage-card');
+  const titleEl = document.getElementById('stage-title-text');
+  const metaEl = document.getElementById('stage-meta');
+  const lapEl = document.getElementById('lap-line');
+  const boardWrap = document.getElementById('leaderboard-wrap');
+  const flagEl = document.getElementById('flag-banner');
+
+  const rows = await get('live_state', 'select=*&is_live=eq.true&limit=1');
+  const state = rows[0];
+  if(!state){
+    titleEl.textContent = 'Not Live Right Now';
+    metaEl.textContent = 'Check back on race night';
+    lapEl.textContent = '';
+    flagEl.className = 'flag-banner';
+    boardWrap.innerHTML = '<div class="empty-state">Waiting for race night to go live…</div>';
+    return;
+  }
+
+  const races = await get('races', `select=*&id=eq.${state.race_id}`);
+  const race = races[0];
+  let session = null, lineup = [], results = [];
+  if(state.session_id){
+    const sessions = await get('race_sessions', `select=*&id=eq.${state.session_id}`);
+    session = sessions[0];
+    const [lu, res] = await Promise.all([
+      get('lineups', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=starting_position.asc`),
+      get('session_results', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=finishing_position.asc`)
+    ]);
+    lineup = lu; results = res;
+  }
+
+  const stageLabel = STAGE_LABEL[state.current_stage] || state.current_stage;
+  const sessionLabel = session ? (session.session_type === 'heat' ? 'Heat ' + session.session_number : (session.session_type === 'b_main' ? 'B-Main' : 'Feature')) : '';
+  titleEl.textContent = `LIVE — ${stageLabel}${sessionLabel ? ' — ' + sessionLabel : ''}`;
+  metaEl.textContent = race ? `R${race.round} — ${race.name}` : '';
+  lapEl.textContent = (session && session.laps_scheduled) ? `LAP ${session.current_lap || 0} / ${session.laps_scheduled}` : '';
+
+  const flag = session ? FLAG_BANNER[session.flag_state || 'green'] : null;
+  if(flag){
+    flagEl.className = 'flag-banner show';
+    flagEl.style.background = flag.bg; flagEl.style.color = flag.fg;
+    flagEl.textContent = flag.label;
+  } else {
+    flagEl.className = 'flag-banner';
+  }
+
+  const finishedIds = new Set(results.map(r => r.entry_id));
+  const stillRacing = lineup.filter(l => !finishedIds.has(l.entry_id));
+
+  if(!results.length && !stillRacing.length){
+    boardWrap.innerHTML = '<div class="empty-state">Lineup coming up…</div>';
+    return;
+  }
+  boardWrap.innerHTML = `
+    ${results.length ? `<table class="board-tbl"><thead><tr><th>Pos</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
+      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td style="color:${r.entries?.color || '#fff'}">#${r.entries?.car_number || '?'} ${r.entries?.name || '—'}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
+    </tbody></table>` : ''}
+    ${stillRacing.length ? `<div class="still-racing">Still racing: ${stillRacing.map(l => '#' + (l.entries?.car_number || '?') + ' ' + (l.entries?.name || '—')).join(' · ')}</div>` : ''}
+  `;
+}
+
+let _channel = null;
+function ensureRealtime(){
+  if(_channel || typeof window.supabase === 'undefined') return;
+  const sb = window.supabase.createClient(SURL, SKEY);
+  _channel = sb.channel('race-night-big-screen')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'live_state' }, refresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'session_results' }, refresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'race_sessions' }, refresh)
+    .subscribe();
+}
+
+refresh();
+ensureRealtime();
+setInterval(refresh, 15000); // safety-net poll in case the socket drops on an unattended kiosk
+</script>
+</body>
+</html>

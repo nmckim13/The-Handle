@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/admin", "destination": "/admin/index.html" },
-    { "source": "/profile-setup", "destination": "/profile-setup.html" }
+    { "source": "/profile-setup", "destination": "/profile-setup.html" },
+    { "source": "/big-screen", "destination": "/big-screen.html" }
   ]
 }
