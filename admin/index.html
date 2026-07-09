@@ -424,6 +424,7 @@
       const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
       });
+      if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
       return res.json();
     },
     async post(table, data) {
@@ -432,6 +433,7 @@
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
         body: JSON.stringify(data)
       });
+      if (!res.ok) throw new Error(`${table}: ${await res.text()}`);
       return res.json();
     },
     async del(table, id) {
@@ -448,6 +450,13 @@
       });
     }
   };
+
+  // Any unhandled async error (e.g. a Race Night table that hasn't been
+  // migrated yet) surfaces as a toast instead of failing silently.
+  window.addEventListener('unhandledrejection', (event) => {
+    toast('Error: ' + (event.reason?.message || event.reason), true);
+    event.preventDefault();
+  });
 
   // TOAST
   function toast(msg, isError=false) {
@@ -1291,7 +1300,13 @@
   async function rnRenderAll() {
     const body = document.getElementById('rn-body');
     if (!RN.raceId) { body.innerHTML = '<p style="color:var(--text2);font-size:13px">Select or create tonight\'s race above to get started.</p>'; return; }
-    const state = await rnFetchState(RN.raceId);
+    let state;
+    try {
+      state = await rnFetchState(RN.raceId);
+    } catch (e) {
+      body.innerHTML = `<div class="error-box"><strong>Race Night tables not set up yet.</strong> Run <code>migrations/001_race_night.sql</code> in the Supabase SQL editor for this project, then reload this page.<br><br><span style="opacity:0.7;font-weight:600">${e.message}</span></div>`;
+      return;
+    }
     if (!state.race) { body.innerHTML = '<p style="color:var(--text2);font-size:13px">Race not found.</p>'; return; }
 
     let html = rnRaceHeaderCard(state.race) + rnCheckInCard(state);
