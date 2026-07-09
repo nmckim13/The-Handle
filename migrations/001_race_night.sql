@@ -78,6 +78,12 @@ alter table lineups enable row level security;
 alter table session_results enable row level security;
 alter table live_state enable row level security;
 
+drop policy if exists "public anon access" on entries;
+drop policy if exists "public anon access" on race_sessions;
+drop policy if exists "public anon access" on lineups;
+drop policy if exists "public anon access" on session_results;
+drop policy if exists "public anon access" on live_state;
+
 create policy "public anon access" on entries for all using (true) with check (true);
 create policy "public anon access" on race_sessions for all using (true) with check (true);
 create policy "public anon access" on lineups for all using (true) with check (true);
@@ -85,5 +91,15 @@ create policy "public anon access" on session_results for all using (true) with 
 create policy "public anon access" on live_state for all using (true) with check (true);
 
 -- The public live page subscribes to these via Supabase Realtime.
-alter publication supabase_realtime add table live_state;
-alter publication supabase_realtime add table session_results;
+-- Wrapped so re-running this script (e.g. by accident) doesn't error out.
+do $$
+begin
+  alter publication supabase_realtime add table live_state;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table session_results;
+exception when duplicate_object then null;
+end $$;
