@@ -82,23 +82,13 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/race-night-client.js"></script>
 <script>
 const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
 
-const get = async (table, q='') => {
-  const r = await fetch(`${SURL}/rest/v1/${table}?${q}`, {headers:{'apikey':SKEY,'Authorization':`Bearer ${SKEY}`}});
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-};
-
-const FLAG_BANNER = {
-  green: null,
-  caution: { bg: '#F4E40F', fg: '#141414', label: '🟡 CAUTION' },
-  red: { bg: '#E0231C', fg: '#fff', label: '🔴 RED FLAG' },
-  checkered: { bg: '#fff', fg: '#141414', label: '🏁 CHECKERED FLAG' }
-};
-const STAGE_LABEL = { check_in: 'Check-In', pill_draw: 'Pill Draw', heat: 'Heat Racing', b_main: 'B-Main', feature: 'Feature', complete: 'Complete' };
+const { FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, escapeHtml } = window.RaceNight;
+const get = window.RaceNight.createClient(SURL, SKEY).get;
 
 async function refresh(){
   const stageCard = document.getElementById('stage-card');
@@ -133,16 +123,16 @@ async function refresh(){
   }
 
   const stageLabel = STAGE_LABEL[state.current_stage] || state.current_stage;
-  const sessionLabel = session ? (session.session_type === 'heat' ? 'Heat ' + session.session_number : (session.session_type === 'b_main' ? 'B-Main' : 'Feature')) : '';
-  titleEl.textContent = `LIVE — ${stageLabel}${sessionLabel ? ' — ' + sessionLabel : ''}`;
+  const stageSessionLabel = sessionLabel(session);
+  titleEl.textContent = `LIVE — ${stageLabel}${stageSessionLabel ? ' — ' + stageSessionLabel : ''}`;
   metaEl.textContent = race ? `R${race.round} — ${race.name}` : '';
   lapEl.textContent = (session && session.laps_scheduled) ? `LAP ${session.current_lap || 0} / ${session.laps_scheduled}` : '';
 
-  const flag = session ? FLAG_BANNER[session.flag_state || 'green'] : null;
+  const flag = session && session.flag_state !== 'green' ? FLAG_LABEL[session.flag_state] : null;
   if(flag){
     flagEl.className = 'flag-banner show';
     flagEl.style.background = flag.bg; flagEl.style.color = flag.fg;
-    flagEl.textContent = flag.label;
+    flagEl.textContent = `${flag.emoji} ${flag.label}`;
   } else {
     flagEl.className = 'flag-banner';
   }
@@ -156,9 +146,9 @@ async function refresh(){
   }
   boardWrap.innerHTML = `
     ${results.length ? `<table class="board-tbl"><thead><tr><th>Pos</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
-      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td style="color:${r.entries?.color || '#fff'}">#${r.entries?.car_number || '?'} ${r.entries?.name || '—'}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
+      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td style="color:${r.entries?.color || '#fff'}">#${escapeHtml(r.entries?.car_number || '?')} ${escapeHtml(r.entries?.name || '—')}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
     </tbody></table>` : ''}
-    ${stillRacing.length ? `<div class="still-racing">Still racing: ${stillRacing.map(l => '#' + (l.entries?.car_number || '?') + ' ' + (l.entries?.name || '—')).join(' · ')}</div>` : ''}
+    ${stillRacing.length ? `<div class="still-racing">Still racing: ${stillRacing.map(l => '#' + escapeHtml(l.entries?.car_number || '?') + ' ' + escapeHtml(l.entries?.name || '—')).join(' · ')}</div>` : ''}
   `;
 }
 
@@ -166,10 +156,11 @@ let _channel = null;
 function ensureRealtime(){
   if(_channel || typeof window.supabase === 'undefined') return;
   const sb = window.supabase.createClient(SURL, SKEY);
+  const debouncedRefresh = debounce(refresh, 400);
   _channel = sb.channel('race-night-big-screen')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'live_state' }, refresh)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'session_results' }, refresh)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'race_sessions' }, refresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'live_state' }, debouncedRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'session_results' }, debouncedRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'race_sessions' }, debouncedRefresh)
     .subscribe();
 }
 
