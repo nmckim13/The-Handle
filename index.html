@@ -405,6 +405,23 @@
   .announce-time { font-size: 11px; color: rgba(255,255,255,0.45); white-space: nowrap; flex-shrink: 0; font-weight: 700; }
   .announce-close { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 22px; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color 0.1s; }
   .announce-close:hover { color: #fff; }
+
+  /* SIGN UP */
+  .su-field { margin-bottom: 14px; }
+  .su-field label { display: block; font-family: 'Archivo', sans-serif; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
+  .su-field input, .su-field select { width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 700; color: var(--white); }
+  .su-field input:focus, .su-field select:focus { outline: none; border-color: var(--red); }
+  .su-waiver-box { max-height: 220px; overflow-y: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font-size: 13px; color: var(--muted); line-height: 1.7; font-weight: 600; margin-bottom: 14px; }
+  .su-check-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+  .su-check-row input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; accent-color: var(--red); }
+  .su-check-row label { font-size: 13px; color: var(--text); font-weight: 700; line-height: 1.5; }
+  .su-submit { width: 100%; background: var(--red); color: var(--white); border: none; border-radius: 10px; padding: 15px; font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.12s; }
+  .su-submit:hover { background: #bf1c17; }
+  .su-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .su-msg { border-radius: 10px; padding: 14px 16px; font-size: 14px; font-weight: 800; margin-bottom: 14px; }
+  .su-msg.ok { background: rgba(45,139,69,0.12); border: 1px solid var(--green); color: #7bd49c; }
+  .su-msg.err { background: rgba(224,35,28,0.12); border: 1px solid var(--red); color: #f58080; }
+  .r-signup-btn { font-family: 'Archivo', sans-serif; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; background: var(--red); color: var(--white); border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -434,12 +451,13 @@
     <button onclick="showPage('drivers',this)">Drivers</button>
     <button onclick="showPage('points',this)">Points</button>
     <button onclick="showPage('schedule',this)">Schedule</button>
+    <button onclick="showPage('signup',this);loadSignupRaces()" style="color:var(--yellow)">Sign Up</button>
     <button onclick="showPage('records',this)">Records</button>
     <button onclick="showPage('videos',this)">Videos</button>
     <button onclick="showPage('rules',this)">Rulebook</button>
     <button onclick="showPage('track',this);loadWeather()">Weather</button>
     <button onclick="showPage('info',this)">Info</button>
-    <button onclick="showPage('live',this)" style="color:var(--orange)">⬤ Live</button>
+    <button onclick="showPage('live',this);loadLiveRacing()" style="color:var(--orange)">⬤ Live</button>
     <button onclick="showPage('sponsors',this);loadSponsors()">Sponsors</button>
   </div>
 </nav>
@@ -546,6 +564,38 @@
     <div class="info-card" style="margin-top:14px">
       <h3>TNT Nights</h3>
       <p>Every Wednesday, weather permitting. Start date TBD. 9pm cutoff. Show up, get in the kart, turn some laps.</p>
+    </div>
+  </div>
+
+  <!-- SIGN UP -->
+  <div class="page" id="page-signup">
+    <div class="sect-lbl" style="margin-bottom:14px">Sign Up For A Race Night</div>
+    <div id="signup-msg"></div>
+    <div id="signup-form-wrap">
+      <div class="su-field">
+        <label>Race Night</label>
+        <select id="su-race"><option value="">Loading races...</option></select>
+      </div>
+      <div class="su-field"><label>Full Name</label><input id="su-name" placeholder="Tyler Mercer"></div>
+      <div class="su-field"><label>Car Number</label><input id="su-number" placeholder="7"></div>
+      <div class="su-field"><label>Email</label><input id="su-email" type="email" placeholder="you@email.com"></div>
+      <div class="su-field"><label>Phone</label><input id="su-phone" type="tel" placeholder="(219) 555-0123"></div>
+
+      <div class="su-field">
+        <label>Liability Waiver</label>
+        <div class="su-waiver-box">
+          I understand that kart racing is an activity with inherent risks, including but not limited to collision, mechanical failure, and personal injury. In consideration of being permitted to participate at The Handle Dirt Oval, I voluntarily assume all risks associated with participation, and I release Mad Mike Miller, The Handle, YardKartz!, and all associated hosts and volunteers from any and all liability for injury, death, or property damage arising from my participation, to the fullest extent permitted by law.
+          <br><br>
+          I confirm I am 18 years of age or older, or that a parent/legal guardian has reviewed and agreed to this waiver on my behalf. I understand that ALL attendees must also sign a waiver in person upon entering the property per The Handle's rulebook, and that unaccompanied minors are not allowed.
+        </div>
+      </div>
+      <div class="su-check-row">
+        <input type="checkbox" id="su-agree">
+        <label for="su-agree">I have read, understood, and agree to the liability waiver above.</label>
+      </div>
+      <div class="su-field"><label>Type your full legal name to sign</label><input id="su-signature" placeholder="Type your name as your signature"></div>
+
+      <button class="su-submit" id="su-submit-btn" onclick="submitSignup()">Sign Up</button>
     </div>
   </div>
 
@@ -816,7 +866,9 @@
 
   <!-- LIVE TIMING -->
   <div class="page" id="page-live">
-    <div class="sect-lbl" style="margin-bottom:14px">Live timing powered by LapMonitor</div>
+    <div class="sect-lbl" style="margin-bottom:14px">Race Night — Live</div>
+    <div id="live-leaderboard"><div class="loading">Loading</div></div>
+    <div class="sect-lbl" style="margin:20px 0 14px">Live timing powered by LapMonitor</div>
     <iframe src="https://lapmonitor.live/512060739" style="width:100%;height:80vh;min-height:500px;border:none;border-radius:10px;background:var(--asphalt-mid);display:block;" allowfullscreen></iframe>
   </div>
 
@@ -829,7 +881,7 @@
     <a class="footer-social-btn" href="https://www.instagram.com/yardkartz/" target="_blank"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg> Instagram</a>
     <a class="footer-social-btn" href="https://www.youtube.com/@yardkartz" target="_blank"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg> YouTube</a>
   </div>
-  YardKartz! · The Handle · Westville, IN · <a href="/admin">Admin</a>
+  YardKartz! · The Handle · Westville, IN
 </footer>
 
 <script>
@@ -838,6 +890,16 @@ const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 
 const get = async (table, q='') => {
   const r = await fetch(`${SURL}/rest/v1/${table}?${q}`, {headers:{'apikey':SKEY,'Authorization':`Bearer ${SKEY}`}});
+  return r.json();
+};
+
+const post = async (table, data) => {
+  const r = await fetch(`${SURL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {'apikey':SKEY,'Authorization':`Bearer ${SKEY}`,'Content-Type':'application/json','Prefer':'return=representation'},
+    body: JSON.stringify(data)
+  });
+  if (!r.ok) throw new Error(await r.text());
   return r.json();
 };
 
@@ -875,7 +937,48 @@ function restorePage() {
   showPage(raw);
   if(raw === 'track') loadWeather();
   if(raw === 'sponsors') loadSponsors();
+  if(raw === 'signup') loadSignupRaces();
+  if(raw === 'live') loadLiveRacing();
 }
+
+// LIVE RACE NIGHT LEADERBOARD
+async function loadLiveRacing(){
+  const wrap = document.getElementById('live-leaderboard');
+  const rows = await get('live_state','select=*&is_live=eq.true&limit=1');
+  const state = rows[0];
+  if(!state){
+    wrap.innerHTML = '<div class="info-card"><h3>Not Live Right Now</h3><p>Check back on race night — this page updates automatically once the admin starts the show.</p></div>';
+    return;
+  }
+  const races = await get('races', `select=*&id=eq.${state.race_id}`);
+  const race = races[0];
+  let session = null, lineup = [], results = [];
+  if(state.session_id){
+    const sessions = await get('race_sessions', `select=*&id=eq.${state.session_id}`);
+    session = sessions[0];
+    const [lu, res] = await Promise.all([
+      get('lineups', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=starting_position.asc`),
+      get('session_results', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=finishing_position.asc`)
+    ]);
+    lineup = lu; results = res;
+  }
+  const stageLabel = {check_in:'Check-In', pill_draw:'Pill Draw', heat:'Heat Racing', b_main:'B-Main', feature:'Feature', complete:'Complete'}[state.current_stage] || state.current_stage;
+  const sessionLabel = session ? (session.session_type==='heat' ? 'Heat '+session.session_number : (session.session_type==='b_main' ? 'B-Main' : 'Feature')) : '';
+  const finishedIds = new Set(results.map(r=>r.entry_id));
+  const stillRacing = lineup.filter(l=>!finishedIds.has(l.entry_id));
+
+  wrap.innerHTML = `
+    <div class="info-card" style="border-color:var(--red)">
+      <h3>&#9679; LIVE — ${stageLabel}${sessionLabel ? ' — '+sessionLabel : ''}</h3>
+      <p>${race ? ('R'+race.round+' — '+race.name) : ''}</p>
+    </div>
+    ${results.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:50px">Pos</th><th>Driver</th></tr></thead><tbody>
+      ${results.map(r=>`<tr><td>${r.finishing_position}</td><td>#${r.entries?.car_number||'?'} ${r.entries?.name||'—'}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    ${stillRacing.length ? `<div class="info-card"><h3>Still Racing</h3><p>${stillRacing.map(l=>'#'+(l.entries?.car_number||'?')+' '+(l.entries?.name||'—')).join(' · ')}</p></div>` : ''}
+  `;
+}
+setInterval(() => { if(document.getElementById('page-live')?.classList.contains('active')) loadLiveRacing(); }, 4000);
 
 function toggleRule(header) {
   header.classList.toggle('open');
@@ -1110,7 +1213,7 @@ function renderR(filter){
       '<div class="r-date"><div class="r-month">'+mo+'</div><div class="r-day">'+dy+'</div></div>'+
       '<div><div class="r-name">R'+r.round+' — '+r.name+'</div><div class="r-detail">The Handle · '+r.laps+' laps</div></div>'+
       (past&&r.winner_name?'<div class="r-winner">'+r.winner_name+' wins</div>':'')+
-      (!past?'<div class="r-pill">Upcoming</div>':'')+
+      (!past?'<div class="r-pill">Upcoming</div><button class="r-signup-btn" onclick="event.stopPropagation();goToSignup(\''+r.id+'\')">Sign Up</button>':'')+
       (past?'<div class="r-chevron">▾</div>':'')+
       '</div>';
     return '<div class="race-item">'+row+(past?'<div class="race-results"><div class="race-results-inner"><div class="rr-loading">Loading...</div></div></div>':'')+'</div>';
@@ -1120,6 +1223,58 @@ function filterR(type,btn){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   renderR(type);
+}
+
+// SIGN UP
+let signupPreselectId = null;
+function goToSignup(raceId){
+  signupPreselectId = raceId;
+  showPage('signup', document.querySelector('.nav-inner button[onclick*="signup"]'));
+  loadSignupRaces();
+}
+async function loadSignupRaces(){
+  const races = await get('races','select=*&order=race_date.asc&status=eq.upcoming');
+  const sel = document.getElementById('su-race');
+  if(!races.length){ sel.innerHTML = '<option value="">No upcoming races right now</option>'; return; }
+  sel.innerHTML = '<option value="">Select a race night...</option>' + races.map(r=>{
+    const d = new Date(r.race_date+'T12:00:00');
+    return `<option value="${r.id}">R${r.round} — ${r.name} (${d.toLocaleDateString('en',{month:'short',day:'numeric'})})</option>`;
+  }).join('');
+  if(signupPreselectId){ sel.value = signupPreselectId; signupPreselectId = null; }
+}
+async function submitSignup(){
+  const msg = document.getElementById('signup-msg');
+  const race_id = document.getElementById('su-race').value;
+  const name = document.getElementById('su-name').value.trim();
+  const car_number = document.getElementById('su-number').value.trim();
+  const email = document.getElementById('su-email').value.trim();
+  const phone = document.getElementById('su-phone').value.trim();
+  const agree = document.getElementById('su-agree').checked;
+  const signature = document.getElementById('su-signature').value.trim();
+
+  if(!race_id || !name || !car_number){
+    msg.innerHTML = '<div class="su-msg err">Race, name, and car number are required.</div>';
+    return;
+  }
+  if(!agree || !signature){
+    msg.innerHTML = '<div class="su-msg err">Please agree to the waiver and type your name to sign.</div>';
+    return;
+  }
+
+  const btn = document.getElementById('su-submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  try {
+    await post('entries', {
+      race_id, name, car_number, email: email || null, phone: phone || null,
+      waiver_signed_at: new Date().toISOString(), waiver_name: signature,
+      status: 'registered'
+    });
+    document.getElementById('signup-form-wrap').style.display = 'none';
+    msg.innerHTML = `<div class="su-msg ok">You're signed up, ${name}! See you at the track — bring your paper waiver too.</div>`;
+  } catch(e){
+    msg.innerHTML = '<div class="su-msg err">Something went wrong submitting your sign-up. Please try again.</div>';
+    btn.disabled = false; btn.textContent = 'Sign Up';
+  }
 }
 
 async function loadRecords(){

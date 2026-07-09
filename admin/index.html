@@ -86,6 +86,12 @@
   .error-box { background: rgba(224,35,28,0.12); border: 1px solid var(--red); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px; color: var(--red); font-weight: 700; }
   .success-box { background: rgba(45,139,69,0.1); border: 1px solid var(--green); border-radius: 8px; padding: 12px 16px; font-size: 14px; color: var(--green); font-weight: 800; margin-bottom: 8px; }
   .import-confirm-area { display: flex; gap: 10px; margin-top: 16px; align-items: center; flex-wrap: wrap; }
+
+  /* RACE NIGHT */
+  .rn-tap-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rn-tap-btn { font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 900; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; color: var(--white); padding: 10px 14px; cursor: pointer; transition: all 0.1s; }
+  .rn-tap-btn:hover { background: var(--red); border-color: var(--red); }
+  .rn-tap-btn:active { transform: scale(0.96); }
 </style>
 </head>
 <body>
@@ -104,7 +110,8 @@
 
 <nav class="admin-nav">
   <div class="admin-nav-inner">
-    <button class="active" onclick="aShow('drivers',this)">Drivers</button>
+    <button class="active" onclick="aShow('racenight',this)">Race Night</button>
+    <button onclick="aShow('drivers',this)">Drivers</button>
     <button onclick="aShow('races',this)">Races</button>
     <button onclick="aShow('results',this)">Results</button>
     <button onclick="aShow('records',this)">Lap Records</button>
@@ -116,8 +123,23 @@
 
 <div class="admin-main">
 
+  <!-- RACE NIGHT -->
+  <div class="admin-page active" id="ap-racenight">
+    <div class="card">
+      <div class="card-title">Tonight's Race</div>
+      <div class="form-grid full">
+        <div class="form-group">
+          <label>Select Race</label>
+          <select id="rn-race-select" onchange="rnSelectRace(this.value)"><option value="">Select tonight's race...</option></select>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin-top:8px">Don't see tonight's race? Add it on the <a href="#" onclick="aShow('races', document.querySelector('.admin-nav-inner button:nth-child(3)'));return false" style="color:var(--red)">Races</a> tab first, then come back here.</p>
+    </div>
+    <div id="rn-body"><p style="color:var(--text2);font-size:13px">Select or create tonight's race above to get started.</p></div>
+  </div>
+
   <!-- DRIVERS -->
-  <div class="admin-page active" id="ap-drivers">
+  <div class="admin-page" id="ap-drivers">
     <div class="card">
       <div class="card-title">Add Driver</div>
       <div class="form-grid">
@@ -524,13 +546,13 @@
     toast(`R${round} — ${name} added!`);
     ['r-round','r-name','r-date','r-winner'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('r-laps').value = '10';
-    loadRaceList(); populateSelects();
+    loadRaceList(); populateSelects(); rnPopulateRaceSelect();
   }
   async function deleteRace(id) {
     if (!confirm('Remove this race?')) return;
     await db.del('races', id);
     toast('Race removed');
-    loadRaceList(); populateSelects();
+    loadRaceList(); populateSelects(); rnPopulateRaceSelect();
   }
 
   // RESULTS
@@ -925,6 +947,382 @@
     document.getElementById('import-replace-confirm').style.display = 'none';
   }
 
+  // ===== RACE NIGHT =====
+  const RN = { raceId: null };
+  const STAGE_ORDER = { heat: 0, b_main: 1, feature: 2 };
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  async function rnPopulateRaceSelect() {
+    const races = await db.get('races', 'select=*&order=race_date.desc');
+    const sel = document.getElementById('rn-race-select');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Select tonight\'s race...</option>' + races.map(r => `<option value="${r.id}">R${r.round} — ${r.name} (${r.race_date})</option>`).join('');
+    if (current) sel.value = current;
+  }
+
+  function rnSelectRace(raceId) {
+    RN.raceId = raceId || null;
+    rnRenderAll();
+  }
+
+  async function rnSetLiveState(raceId, patch) {
+    const rows = await db.get('live_state', `race_id=eq.${raceId}`);
+    const body = { ...patch, updated_at: new Date().toISOString() };
+    if (rows[0]) await db.patch('live_state', `id=eq.${rows[0].id}`, body);
+    else await db.post('live_state', { race_id: raceId, is_live: false, current_stage: 'check_in', ...body });
+  }
+
+  async function rnFetchState(raceId) {
+    const [raceRows, entries, sessionsRaw, officialResults] = await Promise.all([
+      db.get('races', `id=eq.${raceId}`),
+      db.get('entries', `race_id=eq.${raceId}&order=created_at.asc`),
+      db.get('race_sessions', `race_id=eq.${raceId}`),
+      db.get('results', `race_id=eq.${raceId}`)
+    ]);
+    const race = raceRows[0];
+    const sessions = sessionsRaw.slice().sort((a, b) => (STAGE_ORDER[a.session_type] - STAGE_ORDER[b.session_type]) || (a.session_number - b.session_number));
+    const sessionIds = sessions.map(s => s.id);
+    let lineups = [], sresults = [];
+    if (sessionIds.length) {
+      [lineups, sresults] = await Promise.all([
+        db.get('lineups', `session_id=in.(${sessionIds.join(',')})&order=starting_position.asc`),
+        db.get('session_results', `session_id=in.(${sessionIds.join(',')})&order=finishing_position.asc`)
+      ]);
+    }
+    const entryMap = {};
+    entries.forEach(e => entryMap[e.id] = e);
+    const lineupsBySession = {}, sresultsBySession = {};
+    sessions.forEach(s => { lineupsBySession[s.id] = []; sresultsBySession[s.id] = []; });
+    lineups.forEach(l => lineupsBySession[l.session_id]?.push(l));
+    sresults.forEach(r => sresultsBySession[r.session_id]?.push(r));
+    return { race, entries, entryMap, sessions, lineupsBySession, sresultsBySession, officialResults };
+  }
+
+  // CHECK-IN
+  async function rnAddWalkup() {
+    const name = document.getElementById('rn-walkup-name').value.trim();
+    const car_number = document.getElementById('rn-walkup-number').value.trim();
+    const color = document.getElementById('rn-walkup-color').value.trim() || '#F26419';
+    if (!name || !car_number) { toast('Name and car number required', true); return; }
+    await db.post('entries', { race_id: RN.raceId, name, car_number, color, status: 'checked_in' });
+    document.getElementById('rn-walkup-name').value = '';
+    document.getElementById('rn-walkup-number').value = '';
+    toast(`${name} checked in!`);
+    rnRenderAll();
+  }
+  async function rnCheckIn(entryId) { await db.patch('entries', `id=eq.${entryId}`, { status: 'checked_in' }); rnRenderAll(); }
+  async function rnWithdraw(entryId) { await db.patch('entries', `id=eq.${entryId}`, { status: 'withdrawn' }); rnRenderAll(); }
+
+  // PILL DRAW
+  async function rnPillDraw() {
+    if (!RN.raceId) return;
+    const heatSize = parseInt(document.getElementById('rn-heat-size').value) || 8;
+    const laps = parseInt(document.getElementById('rn-heat-laps').value) || 8;
+    const entries = await db.get('entries', `race_id=eq.${RN.raceId}&status=eq.checked_in&order=created_at.asc`);
+    if (!entries.length) { toast('No checked-in drivers yet', true); return; }
+    const shuffled = shuffle(entries);
+    const heats = [];
+    for (let i = 0; i < shuffled.length; i += heatSize) heats.push(shuffled.slice(i, i + heatSize));
+    let firstSessionId = null;
+    for (let i = 0; i < heats.length; i++) {
+      const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'heat', session_number: i + 1, laps_scheduled: laps, status: 'lineup_set' });
+      if (!firstSessionId) firstSessionId = session.id;
+      await db.post('lineups', heats[i].map((e, idx) => ({ session_id: session.id, entry_id: e.id, starting_position: idx + 1 })));
+    }
+    await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'heat', session_id: firstSessionId });
+    toast(`${heats.length} heat${heats.length !== 1 ? 's' : ''} drawn!`);
+    rnRenderAll();
+  }
+
+  // HEAT / B-MAIN / FEATURE — shared tap-to-finish
+  async function rnTapFinish(sessionId, entryId) {
+    const existing = await db.get('session_results', `session_id=eq.${sessionId}&order=finishing_position.desc&limit=1`);
+    const nextPos = (existing[0]?.finishing_position || 0) + 1;
+    await db.post('session_results', { session_id: sessionId, entry_id: entryId, finishing_position: nextPos });
+    rnRenderAll();
+  }
+  async function rnUndoLast(sessionId) {
+    const rows = await db.get('session_results', `session_id=eq.${sessionId}&order=finishing_position.desc&limit=1`);
+    if (!rows.length) return;
+    await db.del('session_results', rows[0].id);
+    rnRenderAll();
+  }
+  async function rnCompleteSession(sessionId) {
+    await db.patch('race_sessions', `id=eq.${sessionId}`, { status: 'completed', completed_at: new Date().toISOString() });
+    rnRenderAll();
+  }
+  async function rnReopenSession(sessionId) {
+    await db.patch('race_sessions', `id=eq.${sessionId}`, { status: 'lineup_set', completed_at: null });
+    rnRenderAll();
+  }
+
+  // B-MAIN
+  async function rnSetupBMain() {
+    const transferN = parseInt(document.getElementById('rn-transfer-count').value) || 99;
+    const laps = parseInt(document.getElementById('rn-bmain-laps').value) || 8;
+    const state = await rnFetchState(RN.raceId);
+    const heatSessions = state.sessions.filter(s => s.session_type === 'heat');
+    if (!heatSessions.length || heatSessions.some(s => s.status !== 'completed')) { toast('Finish all heats first', true); return; }
+    const pool = [];
+    heatSessions.forEach(hs => {
+      (state.sresultsBySession[hs.id] || []).filter(r => r.finishing_position > transferN).forEach(r => pool.push(r));
+    });
+    if (!pool.length) { toast('Everyone transfers — no B-Main needed', false); return; }
+    pool.sort((a, b) => a.finishing_position - b.finishing_position);
+    const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'b_main', session_number: 1, laps_scheduled: laps, status: 'lineup_set' });
+    await db.post('lineups', pool.map((r, idx) => ({ session_id: session.id, entry_id: r.entry_id, starting_position: idx + 1 })));
+    await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'b_main', session_id: session.id });
+    toast('B-Main set up!');
+    rnRenderAll();
+  }
+
+  // FEATURE
+  async function rnSetupFeature() {
+    const laps = parseInt(document.getElementById('rn-feature-laps').value) || 15;
+    const state = await rnFetchState(RN.raceId);
+    const heatSessions = state.sessions.filter(s => s.session_type === 'heat');
+    const bmain = state.sessions.find(s => s.session_type === 'b_main');
+    if (heatSessions.some(s => s.status !== 'completed')) { toast('Finish all heats first', true); return; }
+    if (bmain && bmain.status !== 'completed') { toast('Finish the B-Main first', true); return; }
+
+    const bmainEntryIds = bmain ? new Set((state.lineupsBySession[bmain.id] || []).map(l => l.entry_id)) : new Set();
+    const direct = [];
+    heatSessions.forEach(hs => {
+      (state.sresultsBySession[hs.id] || []).forEach(r => { if (!bmainEntryIds.has(r.entry_id)) direct.push(r); });
+    });
+    direct.sort((a, b) => a.finishing_position - b.finishing_position);
+    const rest = bmain ? (state.sresultsBySession[bmain.id] || []).slice().sort((a, b) => a.finishing_position - b.finishing_position) : [];
+    const order = [...direct, ...rest];
+    if (!order.length) { toast('Run the heats (and B-Main, if any) first', true); return; }
+
+    const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'feature', session_number: 1, laps_scheduled: laps, status: 'lineup_set' });
+    await db.post('lineups', order.map((r, idx) => ({ session_id: session.id, entry_id: r.entry_id, starting_position: idx + 1 })));
+    await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'feature', session_id: session.id });
+    toast('Feature lineup set!');
+    rnRenderAll();
+  }
+
+  async function rnGoLive(sessionId) {
+    await db.patch('race_sessions', `id=eq.${sessionId}`, { status: 'in_progress', started_at: new Date().toISOString() });
+    await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'feature', session_id: sessionId });
+    toast('Feature is live!');
+    rnRenderAll();
+  }
+
+  // OFFICIAL RESULTS
+  async function rnPostOfficial() {
+    const state = await rnFetchState(RN.raceId);
+    const feature = state.sessions.find(s => s.session_type === 'feature');
+    if (!feature) { toast('No feature set up yet', true); return; }
+    const results = (state.sresultsBySession[feature.id] || []).slice().sort((a, b) => a.finishing_position - b.finishing_position);
+    if (!results.length) { toast('No feature finishers recorded yet', true); return; }
+
+    // idempotent: clear any previous official results for this race before reposting
+    await fetch(`${SUPABASE_URL}/rest/v1/results?race_id=eq.${RN.raceId}`, {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+
+    const driversList = await db.get('drivers', 'select=*');
+    const driverByName = {};
+    driversList.forEach(d => { driverByName[d.name.toLowerCase().trim()] = d; });
+
+    const toInsert = [];
+    for (const r of results) {
+      const entry = state.entryMap[r.entry_id];
+      if (!entry) continue;
+      let driver = entry.driver_id ? driversList.find(d => d.id === entry.driver_id) : driverByName[entry.name.toLowerCase().trim()];
+      if (!driver) {
+        const [created] = await db.post('drivers', { name: entry.name, number: entry.car_number, color: entry.color || '#F26419', wins: 0, starts: 0 });
+        driver = created;
+        await db.patch('entries', `id=eq.${entry.id}`, { driver_id: driver.id });
+      } else if (!entry.driver_id) {
+        await db.patch('entries', `id=eq.${entry.id}`, { driver_id: driver.id });
+      }
+      toInsert.push({ race_id: RN.raceId, driver_id: driver.id, position: r.finishing_position, points: calcPoints(r.finishing_position) });
+      const isWin = r.finishing_position === 1;
+      await fetch(`${SUPABASE_URL}/rest/v1/drivers?id=eq.${driver.id}`, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ starts: driver.starts + 1, wins: driver.wins + (isWin ? 1 : 0) })
+      });
+    }
+
+    await db.post('results', toInsert);
+    const winner = state.entryMap[results[0].entry_id];
+    await db.patch('races', `id=eq.${RN.raceId}`, { status: 'past', winner_name: winner ? winner.name : null });
+    await db.patch('race_sessions', `id=eq.${feature.id}`, { status: 'completed', completed_at: new Date().toISOString() });
+    await rnSetLiveState(RN.raceId, { is_live: false, current_stage: 'complete', session_id: null });
+
+    toast('Official results posted!');
+    populateSelects();
+    loadRaceList();
+    rnRenderAll();
+  }
+
+  // RENDER
+  function rnSessionTitle(session) {
+    if (session.session_type === 'heat') return `Heat ${session.session_number}`;
+    if (session.session_type === 'b_main') return 'B-Main';
+    return 'Feature';
+  }
+
+  function rnSessionCard(session, state) {
+    const lineup = (state.lineupsBySession[session.id] || []).map(l => ({ ...l, entry: state.entryMap[l.entry_id] }));
+    const results = (state.sresultsBySession[session.id] || []).map(r => ({ ...r, entry: state.entryMap[r.entry_id] }));
+    const finishedIds = new Set(results.map(r => r.entry_id));
+    const stillRacing = lineup.filter(l => !finishedIds.has(l.entry_id));
+    const finished = results.slice().sort((a, b) => a.finishing_position - b.finishing_position);
+    const liveTag = session.status === 'in_progress' ? ' <span style="color:var(--red);font-size:11px;letter-spacing:1px">● LIVE</span>' : '';
+
+    const finishedHtml = finished.length ? `<ol style="margin:10px 0 0 20px;font-size:13px;font-weight:700">
+      ${finished.map(r => `<li style="margin-bottom:4px;color:${r.entry?.color || 'var(--white)'}">#${r.entry?.car_number || '?'} ${r.entry?.name || '—'}</li>`).join('')}
+    </ol>` : '';
+
+    const tapHtml = session.status !== 'completed' ? `
+      ${stillRacing.length ? `<div class="rn-tap-grid" style="margin-top:10px">
+        ${stillRacing.map(l => `<button class="rn-tap-btn" onclick="rnTapFinish('${session.id}','${l.entry_id}')">#${l.entry?.car_number || '?'} ${l.entry?.name || '—'}</button>`).join('')}
+      </div>` : ''}
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        ${results.length ? `<button class="btn btn-outline" onclick="rnUndoLast('${session.id}')">↺ Undo Last Finisher</button>` : ''}
+        <button class="btn btn-primary" onclick="rnCompleteSession('${session.id}')">Mark ${rnSessionTitle(session)} Complete</button>
+      </div>
+    ` : `<button class="btn btn-outline" style="margin-top:10px" onclick="rnReopenSession('${session.id}')">Reopen for corrections</button>`;
+
+    return `<div class="card">
+      <div class="card-title">${rnSessionTitle(session)}${liveTag} <span style="color:var(--text2);font-weight:700;font-size:12px;text-transform:none;letter-spacing:0">— ${lineup.length} cars, ${session.laps_scheduled || '?'} laps</span></div>
+      ${finishedHtml}
+      ${tapHtml}
+    </div>`;
+  }
+
+  function rnRaceHeaderCard(race) {
+    const d = race.race_date ? new Date(race.race_date + 'T12:00:00').toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD';
+    return `<div class="card">
+      <div class="card-title">R${race.round} — ${race.name}</div>
+      <p style="font-size:13px;color:var(--text2);font-weight:700">${d} · ${race.laps} lap feature · Status: ${race.status}</p>
+    </div>`;
+  }
+
+  function rnCheckInCard(state) {
+    const rows = state.entries.map(e => {
+      const checked = e.status === 'checked_in';
+      const withdrawn = e.status === 'withdrawn';
+      return `<div class="item-row">
+        <div>
+          <div class="item-name" style="color:${e.color || 'var(--white)'}">#${e.car_number} ${e.name}</div>
+          <div class="item-meta">${withdrawn ? 'Withdrawn' : (checked ? 'Checked in' : 'Registered')}${e.email ? ' · ' + e.email : ''}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${!checked && !withdrawn ? `<button class="btn btn-primary" style="padding:5px 10px;font-size:11px" onclick="rnCheckIn('${e.id}')">Check In</button>` : ''}
+          ${!withdrawn ? `<button class="btn btn-danger" onclick="rnWithdraw('${e.id}')">Withdraw</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') || '<em style="color:var(--text2);font-size:13px">No sign-ups yet — add a walk-up below.</em>';
+
+    return `<div class="card">
+      <div class="card-title">Check-In</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Name</label><input id="rn-walkup-name" placeholder="Walk-up driver"></div>
+        <div class="form-group"><label>Car #</label><input id="rn-walkup-number" placeholder="42"></div>
+        <div class="form-group"><label>Color (hex)</label><input id="rn-walkup-color" placeholder="#F26419" value="#F26419"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-outline" onclick="rnAddWalkup()">Add &amp; Check In</button></div>
+      </div>
+      <div class="item-list"><div class="item-list-title">Entries (${state.entries.filter(e => e.status === 'checked_in').length} checked in)</div>${rows}</div>
+    </div>`;
+  }
+
+  function rnPillDrawCard(count) {
+    return `<div class="card">
+      <div class="card-title">Pill Draw</div>
+      <p style="font-size:13px;color:var(--text2);font-weight:700;margin-bottom:12px">${count} checked in. Draw random starting order and split into heats.</p>
+      <div class="form-grid">
+        <div class="form-group"><label>Max cars per heat</label><input id="rn-heat-size" type="number" value="8"></div>
+        <div class="form-group"><label>Heat laps</label><input id="rn-heat-laps" type="number" value="8"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnPillDraw()">🎲 Draw Heats</button></div>
+      </div>
+    </div>`;
+  }
+
+  function rnNextStageCard() {
+    return `<div class="card">
+      <div class="card-title">Next: B-Main or straight to Feature?</div>
+      <p style="font-size:13px;color:var(--text2);font-weight:700;margin-bottom:12px">Set a transfer cutoff to run a B-Main, or just assemble the feature lineup below (default cutoff sends everyone straight through — no B-Main).</p>
+      <div class="form-grid">
+        <div class="form-group"><label>Transfer cutoff (top N per heat go straight to feature)</label><input id="rn-transfer-count" type="number" value="99"></div>
+        <div class="form-group"><label>B-Main laps</label><input id="rn-bmain-laps" type="number" value="8"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-outline" onclick="rnSetupBMain()">Set Up B-Main</button></div>
+      </div>
+    </div>`;
+  }
+
+  function rnFeatureSetupCard() {
+    return `<div class="card">
+      <div class="card-title">Assemble Feature Lineup</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Feature laps</label><input id="rn-feature-laps" type="number" value="15"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnSetupFeature()">Assemble Feature Lineup</button></div>
+      </div>
+    </div>`;
+  }
+
+  function rnOfficialResultsCard(state, feature, finishers) {
+    const sorted = finishers.slice().sort((a, b) => a.finishing_position - b.finishing_position);
+    const alreadyPosted = state.officialResults.length > 0;
+    const rows = sorted.map(r => {
+      const e = state.entryMap[r.entry_id];
+      return `<tr><td>${r.finishing_position}</td><td>#${e?.car_number || '?'} ${e?.name || '—'}</td><td>${calcPoints(r.finishing_position)}</td></tr>`;
+    }).join('');
+    return `<div class="card" style="${alreadyPosted ? 'background:rgba(45,139,69,0.06);border-color:rgba(45,139,69,0.3)' : ''}">
+      <div class="card-title">Official Results${alreadyPosted ? ' <span style="color:var(--green);font-size:12px">✓ Posted</span>' : ''}</div>
+      <table class="preview-table"><thead><tr><th>Pos</th><th>Driver</th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>
+      <div style="margin-top:12px"><button class="btn btn-primary" onclick="rnPostOfficial()">${alreadyPosted ? 'Re-Post Official Results' : 'Post Official Results'}</button></div>
+    </div>`;
+  }
+
+  async function rnRenderAll() {
+    const body = document.getElementById('rn-body');
+    if (!RN.raceId) { body.innerHTML = '<p style="color:var(--text2);font-size:13px">Select or create tonight\'s race above to get started.</p>'; return; }
+    const state = await rnFetchState(RN.raceId);
+    if (!state.race) { body.innerHTML = '<p style="color:var(--text2);font-size:13px">Race not found.</p>'; return; }
+
+    let html = rnRaceHeaderCard(state.race) + rnCheckInCard(state);
+
+    const checkedIn = state.entries.filter(e => e.status === 'checked_in');
+    const heatSessions = state.sessions.filter(s => s.session_type === 'heat');
+    const bmain = state.sessions.find(s => s.session_type === 'b_main');
+    const feature = state.sessions.find(s => s.session_type === 'feature');
+
+    if (!heatSessions.length) {
+      if (checkedIn.length) html += rnPillDrawCard(checkedIn.length);
+    } else {
+      heatSessions.forEach(hs => { html += rnSessionCard(hs, state); });
+      const heatsDone = heatSessions.every(s => s.status === 'completed');
+      if (heatsDone && !bmain && !feature) html += rnNextStageCard();
+      if (bmain) html += rnSessionCard(bmain, state);
+      const bmainDone = !bmain || bmain.status === 'completed';
+      if (heatsDone && bmainDone && !feature) html += rnFeatureSetupCard();
+      if (feature) {
+        html += rnSessionCard(feature, state);
+        if (feature.status !== 'in_progress' && feature.status !== 'completed') {
+          html += `<div class="card"><button class="btn btn-primary" onclick="rnGoLive('${feature.id}')">🏁 Go Live — Start Feature</button></div>`;
+        }
+        const featureFinishers = state.sresultsBySession[feature.id] || [];
+        if (featureFinishers.length) html += rnOfficialResultsCard(state, feature, featureFinishers);
+      }
+    }
+
+    body.innerHTML = html;
+  }
+
   // INIT
   populateSelects();
   loadDriverList();
@@ -933,6 +1331,8 @@
   loadVideoList();
   loadProfileDriverSelect();
   loadAnnouncements();
+  rnPopulateRaceSelect();
+  rnRenderAll();
 </script>
 </body>
 </html>
