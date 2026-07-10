@@ -884,24 +884,17 @@
   YardKartz! · The Handle · Westville, IN
 </footer>
 
+<!-- Powers the instant push updates on the Live page (Supabase Realtime); everything else on the site still runs on plain REST calls below. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/race-night-client.js"></script>
 <script>
 const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
 
-const get = async (table, q='') => {
-  const r = await fetch(`${SURL}/rest/v1/${table}?${q}`, {headers:{'apikey':SKEY,'Authorization':`Bearer ${SKEY}`}});
-  return r.json();
-};
-
-const post = async (table, data) => {
-  const r = await fetch(`${SURL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: {'apikey':SKEY,'Authorization':`Bearer ${SKEY}`,'Content-Type':'application/json','Prefer':'return=representation'},
-    body: JSON.stringify(data)
-  });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-};
+const { isDuplicateRef, newRef, FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, escapeHtml } = window.RaceNight;
+const sbClient = window.RaceNight.createClient(SURL, SKEY);
+const get = sbClient.get;
+const post = sbClient.post;
 
 function calcAge(birthday) {
   if (!birthday) return null;
@@ -942,6 +935,27 @@ function restorePage() {
 }
 
 // LIVE RACE NIGHT LEADERBOARD
+function renderLiveState(state, race, session, lineup, results){
+  const stageLabel = STAGE_LABEL[state.current_stage] || state.current_stage;
+  const stageSessionLabel = sessionLabel(session);
+  const finishedIds = new Set(results.map(r=>r.entry_id));
+  const stillRacing = lineup.filter(l=>!finishedIds.has(l.entry_id));
+  const flag = session && session.flag_state !== 'green' ? FLAG_LABEL[session.flag_state] : null;
+  const lapLine = session && session.laps_scheduled ? `<p style="font-size:15px;font-weight:800;margin-top:4px">Lap ${session.current_lap || 0} / ${session.laps_scheduled}</p>` : '';
+
+  return `
+    ${flag ? `<div class="info-card" style="background:${flag.bg};color:${flag.fg};border-color:${flag.bg};text-align:center"><h3 style="color:${flag.fg}">${flag.emoji} ${flag.label}</h3></div>` : ''}
+    <div class="info-card" style="border-color:var(--red)">
+      <h3>&#9679; LIVE — ${stageLabel}${stageSessionLabel ? ' — '+stageSessionLabel : ''}</h3>
+      <p>${race ? ('R'+race.round+' — '+race.name) : ''}</p>
+      ${lapLine}
+    </div>
+    ${results.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:50px">Pos</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
+      ${results.map(r=>`<tr><td>${r.finishing_position}</td><td>#${escapeHtml(r.entries?.car_number||'?')} ${escapeHtml(r.entries?.name||'—')}</td><td>${r.best_lap_seconds!=null?Number(r.best_lap_seconds).toFixed(3)+'s':'—'}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    ${stillRacing.length ? `<div class="info-card"><h3>Still Racing</h3><p>${stillRacing.map(l=>'#'+escapeHtml(l.entries?.car_number||'?')+' '+escapeHtml(l.entries?.name||'—')).join(' · ')}</p></div>` : ''}
+  `;
+}
 async function loadLiveRacing(){
   const wrap = document.getElementById('live-leaderboard');
   const rows = await get('live_state','select=*&is_live=eq.true&limit=1');
@@ -962,23 +976,23 @@ async function loadLiveRacing(){
     ]);
     lineup = lu; results = res;
   }
-  const stageLabel = {check_in:'Check-In', pill_draw:'Pill Draw', heat:'Heat Racing', b_main:'B-Main', feature:'Feature', complete:'Complete'}[state.current_stage] || state.current_stage;
-  const sessionLabel = session ? (session.session_type==='heat' ? 'Heat '+session.session_number : (session.session_type==='b_main' ? 'B-Main' : 'Feature')) : '';
-  const finishedIds = new Set(results.map(r=>r.entry_id));
-  const stillRacing = lineup.filter(l=>!finishedIds.has(l.entry_id));
-
-  wrap.innerHTML = `
-    <div class="info-card" style="border-color:var(--red)">
-      <h3>&#9679; LIVE — ${stageLabel}${sessionLabel ? ' — '+sessionLabel : ''}</h3>
-      <p>${race ? ('R'+race.round+' — '+race.name) : ''}</p>
-    </div>
-    ${results.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:50px">Pos</th><th>Driver</th></tr></thead><tbody>
-      ${results.map(r=>`<tr><td>${r.finishing_position}</td><td>#${r.entries?.car_number||'?'} ${r.entries?.name||'—'}</td></tr>`).join('')}
-    </tbody></table></div>` : ''}
-    ${stillRacing.length ? `<div class="info-card"><h3>Still Racing</h3><p>${stillRacing.map(l=>'#'+(l.entries?.car_number||'?')+' '+(l.entries?.name||'—')).join(' · ')}</p></div>` : ''}
-  `;
+  wrap.innerHTML = renderLiveState(state, race, session, lineup, results);
 }
-setInterval(() => { if(document.getElementById('page-live')?.classList.contains('active')) loadLiveRacing(); }, 4000);
+// Push updates via Supabase Realtime for near-instant refresh; a slow poll
+// stays on underneath as a safety net in case the websocket drops.
+let _liveChannel = null;
+function ensureLiveRealtime(){
+  if(_liveChannel || typeof window.supabase === 'undefined') return;
+  const sb = window.supabase.createClient(SURL, SKEY);
+  const bump = debounce(() => { if(document.getElementById('page-live')?.classList.contains('active')) loadLiveRacing(); }, 400);
+  _liveChannel = sb.channel('race-night-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'live_state' }, bump)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'session_results' }, bump)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'race_sessions' }, bump)
+    .subscribe();
+}
+ensureLiveRealtime();
+setInterval(() => { if(document.getElementById('page-live')?.classList.contains('active')) loadLiveRacing(); }, 15000);
 
 function toggleRule(header) {
   header.classList.toggle('open');
@@ -1242,6 +1256,11 @@ async function loadSignupRaces(){
   }).join('');
   if(signupPreselectId){ sel.value = signupPreselectId; signupPreselectId = null; }
 }
+// Stays stable across repeat taps of "Sign Up" for the same attempt, so if a
+// dropped connection means the first POST actually landed but the response
+// never arrived, a retry (automatic or a re-tap) can't create a duplicate
+// sign-up — the server rejects the reused client_ref as already used.
+let _signupRef = null;
 async function submitSignup(){
   const msg = document.getElementById('signup-msg');
   const race_id = document.getElementById('su-race').value;
@@ -1263,12 +1282,14 @@ async function submitSignup(){
 
   const btn = document.getElementById('su-submit-btn');
   btn.disabled = true; btn.textContent = 'Submitting...';
+  if(!_signupRef) _signupRef = newRef();
   try {
     await post('entries', {
       race_id, name, car_number, email: email || null, phone: phone || null,
       waiver_signed_at: new Date().toISOString(), waiver_name: signature,
-      status: 'registered'
-    });
+      status: 'registered', client_ref: _signupRef
+    }, { isDuplicate: isDuplicateRef });
+    _signupRef = null;
     document.getElementById('signup-form-wrap').style.display = 'none';
     msg.innerHTML = `<div class="su-msg ok">You're signed up, ${name}! See you at the track — bring your paper waiver too.</div>`;
   } catch(e){
