@@ -110,6 +110,21 @@
   .rn-badge.pending { color: var(--yellow); border-color: rgba(244,228,15,0.4); background: rgba(244,228,15,0.08); }
   .rn-badge.withdrawn { color: var(--muted); }
   .rn-list-head { display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px; }
+  /* OVERVIEW */
+  .ov-hero { background: linear-gradient(135deg, rgba(224,35,28,0.12), rgba(244,228,15,0.05)); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; margin-bottom: 14px; }
+  .ov-hero .lbl { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--red); margin-bottom: 8px; }
+  .ov-hero .date { font-size: 40px; font-weight: 900; color: var(--yellow); line-height: 1; }
+  .ov-hero .name { font-size: 18px; font-weight: 900; color: var(--white); margin-top: 8px; }
+  .ov-hero .sub { font-size: 13px; color: var(--text2); font-weight: 700; margin-top: 4px; }
+  .ov-hero .signups { font-size: 14px; font-weight: 800; color: var(--text2); margin-top: 10px; }
+  .ov-hero .signups b { color: var(--yellow); }
+  .ov-hero-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .ov-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .ov-tile { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px; }
+  .ov-tile .n { font-size: 28px; font-weight: 900; color: var(--white); line-height: 1; }
+  .ov-tile .l { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-top: 6px; }
+  .ov-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  @media (max-width: 600px) { .ov-tiles { grid-template-columns: repeat(2, 1fr); } }
   .rn-qgrid { display: flex; flex-direction: column; gap: 6px; }
   .rn-qrow { display: grid; grid-template-columns: 1fr 128px; gap: 10px; align-items: center; padding: 7px 11px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
   .rn-qrow input { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; font-family: 'Archivo', sans-serif; font-size: 14px; font-weight: 700; color: var(--white); width: 100%; }
@@ -138,7 +153,8 @@
 
 <nav class="admin-nav">
   <div class="admin-nav-inner">
-    <button class="active" onclick="aShow('racenight',this)">Race Night</button>
+    <button class="active" onclick="aShow('overview',this)">Overview</button>
+    <button onclick="aShow('racenight',this)">Race Night</button>
     <button onclick="aShow('drivers',this)">Drivers</button>
     <button onclick="aShow('races',this)">Races</button>
     <button onclick="aShow('results',this)">Results</button>
@@ -151,8 +167,13 @@
 
 <div class="admin-main">
 
+  <!-- OVERVIEW -->
+  <div class="admin-page active" id="ap-overview">
+    <div id="overview-root"><p style="color:var(--text2);font-size:13px">Loading…</p></div>
+  </div>
+
   <!-- RACE NIGHT -->
-  <div class="admin-page active" id="ap-racenight">
+  <div class="admin-page" id="ap-racenight">
     <div class="card">
       <div class="card-title">Tonight's Race</div>
       <div class="form-grid full">
@@ -1821,7 +1842,94 @@
     rnRenderQualPreview();
   }
 
+  // ===== OVERVIEW (landing dashboard) =====
+  function goTab(id) {
+    const btn = [...document.querySelectorAll('.admin-nav-inner button')].find(b => (b.getAttribute('onclick') || '').includes(`'${id}'`));
+    if (btn) aShow(id, btn);
+  }
+  function goRaceNight(raceId) {
+    goTab('racenight');
+    if (raceId) { RN.raceId = raceId; const sel = document.getElementById('rn-race-select'); if (sel) sel.value = raceId; rnRenderAll(); }
+  }
+
+  async function loadOverview() {
+    const root = document.getElementById('overview-root');
+    if (!root) return;
+    let races, drivers;
+    try {
+      [races, drivers] = await Promise.all([
+        db.get('races', 'select=*&order=race_date.desc'),
+        db.get('drivers', 'select=id')
+      ]);
+    } catch (e) { root.innerHTML = `<div class="error-box">Couldn't load the dashboard: ${escapeHtml(e.message || 'error')}</div>`; return; }
+
+    const upcoming = races.filter(r => r.status === 'upcoming').sort((a, b) => new Date(a.race_date) - new Date(b.race_date));
+    const next = upcoming[0];
+    const past = races.filter(r => r.status === 'past').sort((a, b) => new Date(b.race_date) - new Date(a.race_date));
+
+    let signedUp = 0, checkedIn = 0;
+    if (next) {
+      const entries = await db.get('entries', `race_id=eq.${next.id}&status=neq.withdrawn&select=status`);
+      signedUp = entries.length;
+      checkedIn = entries.filter(e => e.status === 'checked_in').length;
+    }
+    const anns = await db.get('announcements', 'select=*&active=eq.true&order=created_at.desc&limit=3');
+
+    let heroHtml;
+    if (next) {
+      const nd = new Date(next.race_date + 'T12:00:00');
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const days = Math.ceil((nd - today) / 86400000);
+      const countdown = days > 0 ? `${days} day${days !== 1 ? 's' : ''} away` : days === 0 ? 'Race day!' : 'past due';
+      heroHtml = `<div class="ov-hero">
+        <div class="lbl">Next Race Night</div>
+        <div class="date">${nd.toLocaleString('en', { month: 'long' }).toUpperCase()} ${nd.getDate()}</div>
+        <div class="name">Round ${next.round} · ${escapeHtml(next.name)}</div>
+        <div class="sub">${countdown} · The Handle, Westville IN</div>
+        <div class="signups"><b>${signedUp}</b> signed up · ${checkedIn} checked in</div>
+        <div class="ov-hero-actions">
+          <button class="btn btn-primary" onclick="goRaceNight('${next.id}')">🏁 Run Race Night</button>
+          <button class="btn btn-outline" onclick="goRaceNight('${next.id}')">View Sign-Ups</button>
+        </div>
+      </div>`;
+    } else {
+      heroHtml = `<div class="ov-hero">
+        <div class="lbl">Next Race Night</div>
+        <div class="name">No upcoming race scheduled</div>
+        <div class="ov-hero-actions"><button class="btn btn-primary" onclick="goTab('races')">Add a Race</button></div>
+      </div>`;
+    }
+
+    const tiles = `<div class="ov-tiles">
+      <div class="ov-tile"><div class="n">${drivers.length}</div><div class="l">Drivers</div></div>
+      <div class="ov-tile"><div class="n">${signedUp}</div><div class="l">Signed Up</div></div>
+      <div class="ov-tile"><div class="n">${past.length}</div><div class="l">Races Run</div></div>
+      <div class="ov-tile"><div class="n">${upcoming.length}</div><div class="l">Upcoming</div></div>
+    </div>`;
+
+    const lastWinner = past[0] && past[0].winner_name
+      ? `<div class="card"><div class="card-title">Last Race</div><p style="font-size:13px;color:var(--text2);font-weight:700">R${past[0].round} — ${escapeHtml(past[0].name)} · Winner: <span style="color:var(--yellow)">${escapeHtml(past[0].winner_name)}</span></p></div>`
+      : '';
+
+    const annHtml = anns && anns.length
+      ? `<div class="card"><div class="card-title">Live Announcements</div>${anns.map(a => `<div class="item-row"><div><div class="item-name" style="text-transform:none;font-size:13px">${escapeHtml(a.message)}</div><div class="item-meta">${escapeHtml(a.type || '')}</div></div></div>`).join('')}</div>`
+      : '';
+
+    const quickActions = `<div class="card">
+      <div class="card-title">Quick Actions</div>
+      <div class="ov-actions">
+        <button class="btn btn-outline" onclick="goTab('drivers')">Drivers</button>
+        <button class="btn btn-outline" onclick="goTab('results')">Post Results</button>
+        <button class="btn btn-outline" onclick="goTab('races')">Schedule</button>
+        <button class="btn btn-outline" onclick="goTab('announcements')">Announcements</button>
+      </div>
+    </div>`;
+
+    root.innerHTML = heroHtml + tiles + lastWinner + annHtml + quickActions;
+  }
+
   // INIT
+  loadOverview();
   populateSelects();
   loadDriverList();
   loadRaceList();
