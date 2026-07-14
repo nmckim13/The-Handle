@@ -1301,7 +1301,7 @@
         } else if (!entry.driver_id) {
           await db.patch('entries', `id=eq.${entry.id}`, { driver_id: driver.id });
         }
-        toInsert.push({ race_id: RN.raceId, driver_id: driver.id, position: r.finishing_position, points: calcPoints(r.finishing_position) });
+        toInsert.push({ race_id: RN.raceId, driver_id: driver.id, position: r.finishing_position, points: calcPoints(r.finishing_position), season: state.race.season });
         const isWin = r.finishing_position === 1;
         await db.patch('drivers', `id=eq.${driver.id}`, { starts: driver.starts + 1, wins: driver.wins + (isWin ? 1 : 0) });
       }
