@@ -1324,6 +1324,25 @@ async function submitSignup(){
 
   const btn = document.getElementById('su-submit-btn');
   btn.disabled = true; btn.textContent = 'Submitting...';
+
+  // Don't let the same driver sign up twice for one race night — match on the
+  // linked driver record, or (for unlinked/new entries) the car number or name.
+  // A read failure here shouldn't block a legit sign-up, so it's best-effort.
+  try {
+    const existing = await get('entries', `race_id=eq.${race_id}&status=neq.withdrawn&select=name,car_number,driver_id`);
+    const norm = s => String(s||'').trim().toLowerCase();
+    const dup = existing.find(e =>
+      (selectedSignupDriverId && e.driver_id === selectedSignupDriverId) ||
+      (norm(e.car_number) && norm(e.car_number) === norm(car_number)) ||
+      norm(e.name) === norm(name)
+    );
+    if(dup){
+      msg.innerHTML = `<div class="su-msg err">${escapeHtml(dup.name)} (#${escapeHtml(dup.car_number)}) is already signed up for this race night — you're all set, no need to sign up again. If this isn't you, use a different car number or check with the track.</div>`;
+      btn.disabled = false; btn.textContent = 'Sign Up';
+      return;
+    }
+  } catch(e){ /* check unavailable — fall through and let them sign up */ }
+
   if(!_signupRef) _signupRef = newRef();
   try {
     await post('entries', {
