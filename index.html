@@ -1113,7 +1113,19 @@ async function loadHome() {
 }
 
 async function loadDrivers() {
-  const d = await get('drivers','select=*&order=wins.desc,name.asc');
+  const d = await get('drivers','select=*');
+  // Order drivers by car number (numeric). Parsed client-side so the sort is
+  // correct whether `number` is stored as text or int; ties/unparseable
+  // numbers fall back to name order.
+  d.sort((a, b) => {
+    const na = parseInt(a.number, 10), nb = parseInt(b.number, 10);
+    const aNaN = isNaN(na), bNaN = isNaN(nb);
+    if (aNaN && bNaN) return a.name.localeCompare(b.name);
+    if (aNaN) return 1;
+    if (bNaN) return -1;
+    if (na !== nb) return na - nb;
+    return a.name.localeCompare(b.name);
+  });
   const g = document.getElementById('driver-grid');
   if(!d.length){g.innerHTML='<div class="empty">No drivers yet</div>';return;}
   g.innerHTML=d.map((dr,i)=>{
