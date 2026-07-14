@@ -413,6 +413,7 @@
   .su-field label { display: block; font-family: 'Archivo', sans-serif; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
   .su-field input, .su-field select { width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 700; color: var(--white); }
   .su-field input:focus, .su-field select:focus { outline: none; border-color: var(--red); }
+  .su-hint { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 6px; line-height: 1.5; }
   .su-waiver-box { max-height: 220px; overflow-y: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font-size: 13px; color: var(--muted); line-height: 1.7; font-weight: 600; margin-bottom: 14px; }
   .su-check-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
   .su-check-row input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; accent-color: var(--red); }
@@ -577,6 +578,11 @@
       <div class="su-field">
         <label>Race Night</label>
         <select id="su-race"><option value="">Loading races...</option></select>
+      </div>
+      <div class="su-field">
+        <label>Your Name</label>
+        <select id="su-driver" onchange="onSignupDriverPick()"><option value="">Loading drivers...</option></select>
+        <div class="su-hint">Raced here before? Pick your name to load your number. New driver? Choose "I'm new" and fill it in below.</div>
       </div>
       <div class="su-field"><label>Full Name</label><input id="su-name" placeholder="Tyler Mercer"></div>
       <div class="su-field"><label>Car Number</label><input id="su-number" placeholder="7"></div>
@@ -1252,12 +1258,45 @@ function goToSignup(raceId){
 async function loadSignupRaces(){
   const races = await get('races','select=*&order=race_date.asc&status=eq.upcoming');
   const sel = document.getElementById('su-race');
-  if(!races.length){ sel.innerHTML = '<option value="">No upcoming races right now</option>'; return; }
-  sel.innerHTML = '<option value="">Select a race night...</option>' + races.map(r=>{
-    const d = new Date(r.race_date+'T12:00:00');
-    return `<option value="${r.id}">R${r.round} — ${r.name} (${d.toLocaleDateString('en',{month:'short',day:'numeric'})})</option>`;
-  }).join('');
-  if(signupPreselectId){ sel.value = signupPreselectId; signupPreselectId = null; }
+  if(!races.length){ sel.innerHTML = '<option value="">No upcoming races right now</option>'; }
+  else {
+    sel.innerHTML = '<option value="">Select a race night...</option>' + races.map(r=>{
+      const d = new Date(r.race_date+'T12:00:00');
+      return `<option value="${r.id}">R${r.round} — ${r.name} (${d.toLocaleDateString('en',{month:'short',day:'numeric'})})</option>`;
+    }).join('');
+    if(signupPreselectId){ sel.value = signupPreselectId; signupPreselectId = null; }
+  }
+  loadSignupDrivers();
+}
+
+// Existing drivers, so a returning racer can pick their name (which links the
+// sign-up to their driver record + stats) instead of retyping it.
+let _signupDrivers = {};
+async function loadSignupDrivers(){
+  const sel = document.getElementById('su-driver');
+  if(!sel) return;
+  const drivers = await get('drivers','select=id,name,number&order=name.asc');
+  _signupDrivers = {};
+  drivers.forEach(d=>{ _signupDrivers[d.id] = d; });
+  sel.innerHTML = '<option value="">➕ I\'m new / not listed — I\'ll type it in</option>' +
+    drivers.map(d=>`<option value="${d.id}">#${escapeHtml(d.number)} ${escapeHtml(d.name)}</option>`).join('');
+}
+
+let selectedSignupDriverId = null;
+function onSignupDriverPick(){
+  const id = document.getElementById('su-driver').value;
+  const nameEl = document.getElementById('su-name');
+  const numEl = document.getElementById('su-number');
+  if(id && _signupDrivers[id]){
+    selectedSignupDriverId = id;
+    nameEl.value = _signupDrivers[id].name;
+    numEl.value = _signupDrivers[id].number;
+  } else {
+    selectedSignupDriverId = null;
+    nameEl.value = '';
+    numEl.value = '';
+    nameEl.focus();
+  }
 }
 // Stays stable across repeat taps of "Sign Up" for the same attempt, so if a
 // dropped connection means the first POST actually landed but the response
@@ -1289,6 +1328,7 @@ async function submitSignup(){
   try {
     await post('entries', {
       race_id, name, car_number, email: email || null, phone: phone || null,
+      driver_id: selectedSignupDriverId || null,
       waiver_signed_at: new Date().toISOString(), waiver_name: signature,
       status: 'registered', client_ref: _signupRef
     }, { isDuplicate: isDuplicateRef });
