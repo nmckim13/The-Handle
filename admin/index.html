@@ -518,7 +518,21 @@
   }
   async function deleteDriver(id) {
     if (!confirm('Remove this driver?')) return;
-    await db.del('drivers', id);
+    try {
+      await db.del('drivers', id);
+    } catch (e) {
+      // e.g. the driver has official results and a foreign key blocks the delete
+      toast('Could not remove driver: ' + (e.message || 'database error'), true);
+      return;
+    }
+    // A delete can silently affect 0 rows if the drivers delete policy hasn't
+    // been applied (migrations/004) — verify it actually happened before
+    // claiming success, so the button can't lie.
+    const still = await db.get('drivers', `id=eq.${id}&select=id`);
+    if (still.length) {
+      toast('Driver not removed — the database is blocking driver deletes (apply migration 004).', true);
+      return;
+    }
     toast('Driver removed');
     loadDriverList(); populateSelects();
   }
