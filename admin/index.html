@@ -92,6 +92,24 @@
   .rn-tap-btn { font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 900; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; color: var(--white); padding: 10px 14px; cursor: pointer; transition: all 0.1s; }
   .rn-tap-btn:hover { background: var(--red); border-color: var(--red); }
   .rn-tap-btn:active { transform: scale(0.96); }
+  .rn-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .rn-stat { flex: 1; min-width: 92px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .rn-stat .n { font-size: 28px; font-weight: 900; line-height: 1; }
+  .rn-stat .l { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-top: 6px; }
+  .rn-stat.signed .n { color: var(--white); }
+  .rn-stat.checked { border-color: rgba(45,139,69,0.4); } .rn-stat.checked .n { color: var(--green); }
+  .rn-stat.pending { border-color: rgba(244,228,15,0.35); } .rn-stat.pending .n { color: var(--yellow); }
+  .rn-entry { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); margin-bottom: 6px; }
+  .rn-entry.dim { opacity: 0.5; }
+  .rn-entry.done { border-color: rgba(45,139,69,0.35); }
+  .rn-entry-num { flex-shrink: 0; min-width: 40px; font-family: 'Archivo', sans-serif; font-size: 17px; font-weight: 900; }
+  .rn-entry-name { font-size: 14px; font-weight: 900; color: var(--white); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .rn-entry-meta { font-size: 12px; color: var(--muted); font-weight: 700; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rn-badge { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--line); }
+  .rn-badge.checked { color: var(--green); border-color: rgba(45,139,69,0.5); background: rgba(45,139,69,0.12); }
+  .rn-badge.pending { color: var(--yellow); border-color: rgba(244,228,15,0.4); background: rgba(244,228,15,0.08); }
+  .rn-badge.withdrawn { color: var(--muted); }
+  .rn-list-head { display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px; }
   .rn-qgrid { display: flex; flex-direction: column; gap: 6px; }
   .rn-qrow { display: grid; grid-template-columns: 1fr 128px; gap: 10px; align-items: center; padding: 7px 11px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
   .rn-qrow input { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; font-family: 'Archivo', sans-serif; font-size: 14px; font-weight: 700; color: var(--white); width: 100%; }
@@ -1063,6 +1081,26 @@
   }
   async function rnCheckIn(entryId) { await db.patch('entries', `id=eq.${entryId}`, { status: 'checked_in' }); rnRenderAll(); }
   async function rnWithdraw(entryId) { await db.patch('entries', `id=eq.${entryId}`, { status: 'withdrawn' }); rnRenderAll(); }
+  async function rnUncheck(entryId) { await db.patch('entries', `id=eq.${entryId}`, { status: 'registered' }); rnRenderAll(); }
+  async function rnCheckInAll() {
+    const state = await rnFetchState(RN.raceId);
+    const pending = state.entries.filter(e => e.status === 'registered');
+    if (!pending.length) { toast('No one left to check in', false); return; }
+    if (!confirm(`Check in all ${pending.length} remaining driver${pending.length !== 1 ? 's' : ''}?`)) return;
+    for (const e of pending) await db.patch('entries', `id=eq.${e.id}`, { status: 'checked_in' });
+    toast(`${pending.length} checked in`);
+    rnRenderAll();
+  }
+  function rnTimeAgo(iso) {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
+  }
 
   // QUALIFYING — times are kept on this device only (they're needed just to
   // compute the heat grid at seed time; once heats are drawn everything is
@@ -1562,30 +1600,57 @@
   }
 
   function rnCheckInCard(state) {
-    const rows = state.entries.map(e => {
+    const checkedIn = state.entries.filter(e => e.status === 'checked_in');
+    const pending = state.entries.filter(e => e.status === 'registered');
+    const withdrawn = state.entries.filter(e => e.status === 'withdrawn');
+    const signedUp = checkedIn.length + pending.length;
+
+    // Not-yet-here first (they need action), then checked in, then withdrawn.
+    const order = [...pending, ...checkedIn, ...withdrawn];
+    const rowHtml = e => {
       const checked = e.status === 'checked_in';
-      const withdrawn = e.status === 'withdrawn';
-      return `<div class="item-row">
-        <div>
-          <div class="item-name" style="color:${e.color || 'var(--white)'}">#${escapeHtml(e.car_number)} ${escapeHtml(e.name)}</div>
-          <div class="item-meta">${withdrawn ? 'Withdrawn' : (checked ? 'Checked in' : 'Registered')}${e.email ? ' · ' + escapeHtml(e.email) : ''}</div>
+      const wd = e.status === 'withdrawn';
+      const badge = wd ? '<span class="rn-badge withdrawn">Withdrawn</span>'
+        : checked ? '<span class="rn-badge checked">✓ Checked In</span>'
+        : '<span class="rn-badge pending">Registered</span>';
+      const contact = [e.email, e.phone].filter(Boolean).map(escapeHtml).join(' · ');
+      const meta = [contact, e.created_at ? 'signed up ' + rnTimeAgo(e.created_at) : ''].filter(Boolean).join(' · ');
+      return `<div class="rn-entry${wd ? ' dim' : (checked ? ' done' : '')}">
+        <div class="rn-entry-num" style="color:${e.color || 'var(--white)'}">#${escapeHtml(e.car_number)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="rn-entry-name">${escapeHtml(e.name)} ${badge}</div>
+          <div class="rn-entry-meta">${meta || 'walk-up / no contact info'}</div>
         </div>
-        <div style="display:flex;gap:6px">
-          ${!checked && !withdrawn ? `<button class="btn btn-primary" style="padding:5px 10px;font-size:11px" onclick="rnCheckIn('${e.id}')">Check In</button>` : ''}
-          ${!withdrawn ? `<button class="btn btn-danger" onclick="rnWithdraw('${e.id}')">Withdraw</button>` : ''}
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${!checked && !wd ? `<button class="btn btn-primary" style="padding:6px 12px;font-size:11px" onclick="rnCheckIn('${e.id}')">Check In</button>` : ''}
+          ${checked ? `<button class="btn btn-outline" style="padding:6px 10px;font-size:11px" onclick="rnUncheck('${e.id}')">Undo</button>` : ''}
+          ${!wd ? `<button class="btn btn-danger" onclick="rnWithdraw('${e.id}')">Withdraw</button>` : ''}
         </div>
       </div>`;
-    }).join('') || '<em style="color:var(--text2);font-size:13px">No sign-ups yet — add a walk-up below.</em>';
+    };
+    const listHtml = order.length ? order.map(rowHtml).join('') : '<em style="color:var(--text2);font-size:13px">No sign-ups yet — add a walk-up below.</em>';
 
     return `<div class="card">
-      <div class="card-title">Check-In</div>
-      <div class="form-grid">
-        <div class="form-group"><label>Name</label><input id="rn-walkup-name" placeholder="Walk-up driver"></div>
-        <div class="form-group"><label>Car #</label><input id="rn-walkup-number" placeholder="42"></div>
-        <div class="form-group"><label>Color (hex)</label><input id="rn-walkup-color" placeholder="#F26419" value="#F26419"></div>
-        <div class="form-group"><label>&nbsp;</label><button class="btn btn-outline" onclick="rnAddWalkup()">Add &amp; Check In</button></div>
+      <div class="card-title">Sign-Ups &amp; Check-In</div>
+      <div class="rn-stats">
+        <div class="rn-stat signed"><div class="n">${signedUp}</div><div class="l">Signed Up</div></div>
+        <div class="rn-stat checked"><div class="n">${checkedIn.length}</div><div class="l">Checked In</div></div>
+        <div class="rn-stat pending"><div class="n">${pending.length}</div><div class="l">Not Here Yet</div></div>
       </div>
-      <div class="item-list"><div class="item-list-title">Entries (${state.entries.filter(e => e.status === 'checked_in').length} checked in)</div>${rows}</div>
+      <div class="rn-list-head">
+        <div class="item-list-title" style="margin:0">Drivers${withdrawn.length ? ` <span style="color:var(--text2)">· ${withdrawn.length} withdrawn</span>` : ''}</div>
+        ${pending.length ? `<button class="btn btn-outline" style="padding:5px 10px;font-size:11px" onclick="rnCheckInAll()">Check In All</button>` : ''}
+      </div>
+      ${listHtml}
+      <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
+        <div class="item-list-title">Add Walk-Up</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Name</label><input id="rn-walkup-name" placeholder="Walk-up driver"></div>
+          <div class="form-group"><label>Car #</label><input id="rn-walkup-number" placeholder="42"></div>
+          <div class="form-group"><label>Color (hex)</label><input id="rn-walkup-color" placeholder="#F26419" value="#F26419"></div>
+          <div class="form-group"><label>&nbsp;</label><button class="btn btn-outline" onclick="rnAddWalkup()">Add &amp; Check In</button></div>
+        </div>
+      </div>
     </div>`;
   }
 
