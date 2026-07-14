@@ -142,6 +142,8 @@
   .hp-race-name { font-family: 'Archivo', sans-serif; font-size: 18px; font-weight: 900; color: var(--white); }
   .hp-location { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 700; }
   .hp-countdown { display: inline-block; margin-top: 10px; font-family: 'Archivo', sans-serif; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; background: var(--panel-2); color: var(--yellow); border: 1px solid var(--line); padding: 4px 10px; border-radius: 6px; }
+  .hp-signup-btn { display: block; width: 100%; margin-top: 16px; font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; background: var(--red); color: var(--white); border: none; border-radius: 8px; padding: 12px 16px; cursor: pointer; transition: background 0.1s; }
+  .hp-signup-btn:hover { background: #bf1c17; }
 
   /* STANDINGS */
   .nsc-subhdr { font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--red); margin-bottom: 14px; margin-top: 3px; }
@@ -1050,7 +1052,8 @@ async function loadHome() {
       <div class="hp-date-big">${nmo} ${nd.getDate()}</div>
       <div class="hp-race-name">${next.name}</div>
       <div class="hp-location">The Handle · Westville, IN</div>
-      <div class="hp-countdown">${countdown}</div>`;
+      <div class="hp-countdown">${countdown}</div>
+      <button class="hp-signup-btn" onclick="goToSignup('${next.id}')">Sign Up for This Race →</button>`;
   } else {
     nextEl.innerHTML = `<div class="hp-lbl">Next Points Race</div><div style="color:var(--text2);font-size:14px;padding-top:12px">Schedule TBD</div>`;
   }
