@@ -535,18 +535,51 @@
   }
 
   // DRIVERS
+  // Cached so the inline "Edit #" flow can look a driver up by id without
+  // re-fetching, and re-render optimistically after a number change.
+  let _drivers = [];
   async function loadDriverList() {
-    const drivers = await db.get('drivers', 'select=*&order=wins.desc');
+    _drivers = await db.get('drivers', 'select=*&order=wins.desc');
+    renderDriverList();
+  }
+  function renderDriverList() {
     const el = document.getElementById('driver-list');
-    if (!drivers.length) { el.innerHTML = '<em style="color:var(--text2);font-size:13px">No drivers yet</em>'; return; }
-    el.innerHTML = drivers.map(d => `
+    if (!_drivers.length) { el.innerHTML = '<em style="color:var(--text2);font-size:13px">No drivers yet</em>'; return; }
+    el.innerHTML = _drivers.map(d => `
       <div class="item-row">
         <div>
-          <div class="item-name" style="color:${d.color}">#${d.number} ${d.name}</div>
+          <div class="item-name" style="color:${d.color}">#${escapeHtml(String(d.number))} ${escapeHtml(d.name)}</div>
           <div class="item-meta">${d.wins} wins · ${d.starts} starts</div>
         </div>
-        <button class="btn btn-danger" onclick="deleteDriver('${d.id}')">Remove</button>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-danger" onclick="editDriverNumber('${d.id}')">Edit #</button>
+          <button class="btn btn-danger" onclick="deleteDriver('${d.id}')">Remove</button>
+        </div>
       </div>`).join('');
+  }
+  // One-click car-number change: pick the driver in the list, type the new
+  // number, and it's PATCHed straight into Supabase (no SQL editor needed).
+  function editDriverNumber(id) {
+    const d = _drivers.find(x => x.id === id);
+    if (!d) return;
+    const next = prompt(`New car number for ${d.name} (currently #${d.number}):`, d.number);
+    if (next == null) return; // cancelled
+    const number = String(next).trim();
+    if (!number) { toast('Number required', true); return; }
+    if (number === String(d.number)) return; // no change
+    saveDriverNumber(id, number);
+  }
+  async function saveDriverNumber(id, number) {
+    try {
+      await db.patch('drivers', `id=eq.${id}`, { number });
+    } catch (e) {
+      toast('Could not update number: ' + (e.message || 'database error'), true);
+      return;
+    }
+    const d = _drivers.find(x => x.id === id);
+    if (d) d.number = number;
+    toast('Number updated');
+    renderDriverList(); populateSelects();
   }
   async function addDriver() {
     const name = document.getElementById('d-name').value.trim();
