@@ -1234,10 +1234,16 @@
         (state.sresultsBySession[hs.id] || []).forEach(r => { if (!bmainEntryIds.has(r.entry_id)) direct.push(r); });
       });
       direct.sort((a, b) => a.finishing_position - b.finishing_position);
-      const rest = bmain ? (state.sresultsBySession[bmain.id] || []).slice().sort((a, b) => a.finishing_position - b.finishing_position) : [];
+      // LCQ-style cutoff: only the top K B-Main finishers transfer to the back
+      // of the feature; the rest are done for the night. Blank/0 = everyone in.
+      const bmainAll = bmain ? (state.sresultsBySession[bmain.id] || []).slice().sort((a, b) => a.finishing_position - b.finishing_position) : [];
+      const kRaw = bmain ? parseInt(document.getElementById('rn-bmain-transfer').value) : NaN;
+      const bmainTransfer = (!isNaN(kRaw) && kRaw >= 0) ? kRaw : bmainAll.length;
+      const rest = bmainAll.slice(0, bmainTransfer);
       const order = [...direct, ...rest];
       if (!order.length) { toast('Run the heats (and B-Main, if any) first', true); return; }
-      if (!confirm(`Assemble the ${order.length}-car feature lineup?`)) return;
+      const cutMsg = bmain && rest.length < bmainAll.length ? ` (top ${rest.length} of ${bmainAll.length} from the B-Main transfer)` : '';
+      if (!confirm(`Assemble the ${order.length}-car feature lineup?${cutMsg}`)) return;
 
       const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'feature', session_number: 1, laps_scheduled: laps, status: 'lineup_set' });
       await db.post('lineups', order.map((r, idx) => ({ session_id: session.id, entry_id: r.entry_id, starting_position: idx + 1 })));
@@ -1620,11 +1626,16 @@
     </div>`;
   }
 
-  function rnFeatureSetupCard() {
+  function rnFeatureSetupCard(hasBmain, bmainCount) {
+    const bmainField = hasBmain ? `
+        <div class="form-group"><label>B-Main transfers (top K to feature)</label><input id="rn-bmain-transfer" type="number" min="0" value="2"></div>` : '';
+    const bmainHint = hasBmain ? `<p style="font-size:12px;color:var(--text2);margin-bottom:12px">Only the top K B-Main finishers move to the back of the feature; the rest are done for the night. Set it to ${bmainCount} to send everyone through.</p>` : '';
     return `<div class="card">
       <div class="card-title">Assemble Feature Lineup</div>
+      ${bmainHint}
       <div class="form-grid">
         <div class="form-group"><label>Feature laps</label><input id="rn-feature-laps" type="number" value="15"></div>
+        ${bmainField}
         <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnSetupFeature(this)">Assemble Feature Lineup</button></div>
       </div>
     </div>`;
@@ -1675,7 +1686,7 @@
       if (heatsDone && !bmain && !feature) html += rnNextStageCard();
       if (bmain) html += rnSessionCard(bmain, state);
       const bmainDone = !bmain || bmain.status === 'completed';
-      if (heatsDone && bmainDone && !feature) html += rnFeatureSetupCard();
+      if (heatsDone && bmainDone && !feature) html += rnFeatureSetupCard(!!bmain, bmain ? (state.sresultsBySession[bmain.id] || []).length : 0);
       if (feature) {
         html += rnSessionCard(feature, state);
         if (feature.status !== 'in_progress' && feature.status !== 'completed') {
