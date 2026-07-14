@@ -539,11 +539,27 @@
   // re-fetching, and re-render optimistically after a number change.
   let _drivers = [];
   async function loadDriverList() {
-    _drivers = await db.get('drivers', 'select=*&order=wins.desc');
+    _drivers = await db.get('drivers', 'select=*');
     renderDriverList();
+  }
+  // Order drivers by car number (numeric). Parsed client-side so the sort is
+  // correct whether `number` is stored as text or int, and so the list stays
+  // ordered after an inline "Edit #" re-render. Unparseable numbers fall to
+  // the end, alphabetically.
+  function sortDriversByNumber() {
+    _drivers.sort((a, b) => {
+      const na = parseInt(a.number, 10), nb = parseInt(b.number, 10);
+      const aNaN = isNaN(na), bNaN = isNaN(nb);
+      if (aNaN && bNaN) return a.name.localeCompare(b.name);
+      if (aNaN) return 1;
+      if (bNaN) return -1;
+      if (na !== nb) return na - nb;
+      return a.name.localeCompare(b.name);
+    });
   }
   function renderDriverList() {
     const el = document.getElementById('driver-list');
+    sortDriversByNumber();
     if (!_drivers.length) { el.innerHTML = '<em style="color:var(--text2);font-size:13px">No drivers yet</em>'; return; }
     el.innerHTML = _drivers.map(d => `
       <div class="item-row">
