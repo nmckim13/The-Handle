@@ -415,6 +415,7 @@
   .su-field label { display: block; font-family: 'Archivo', sans-serif; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
   .su-field input, .su-field select { width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 700; color: var(--white); }
   .su-field input:focus, .su-field select:focus { outline: none; border-color: var(--red); }
+  .su-field input[readonly] { background: var(--panel); color: var(--muted); cursor: default; }
   .su-hint { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 6px; line-height: 1.5; }
   .su-waiver-box { max-height: 220px; overflow-y: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font-size: 13px; color: var(--muted); line-height: 1.7; font-weight: 600; margin-bottom: 14px; }
   .su-check-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
@@ -584,10 +585,10 @@
       <div class="su-field">
         <label>Your Name</label>
         <select id="su-driver" onchange="onSignupDriverPick()"><option value="">Loading drivers...</option></select>
-        <div class="su-hint">Raced here before? Pick your name to load your number. New driver? Choose "I'm new" and fill it in below.</div>
+        <div class="su-hint">Pick your name from the list to load your number. Only registered drivers can sign up — if you're not on the list, contact the track to get a driver profile set up first.</div>
       </div>
-      <div class="su-field"><label>Full Name</label><input id="su-name" placeholder="Tyler Mercer"></div>
-      <div class="su-field"><label>Car Number</label><input id="su-number" placeholder="7"></div>
+      <div class="su-field"><label>Full Name</label><input id="su-name" placeholder="Select your name above" readonly></div>
+      <div class="su-field"><label>Car Number</label><input id="su-number" placeholder="—" readonly></div>
       <div class="su-field"><label>Email</label><input id="su-email" type="email" placeholder="you@email.com"></div>
       <div class="su-field"><label>Phone</label><input id="su-phone" type="tel" placeholder="(219) 555-0123"></div>
 
@@ -1298,7 +1299,7 @@ async function loadSignupDrivers(){
   const drivers = await get('drivers','select=id,name,number&order=name.asc');
   _signupDrivers = {};
   drivers.forEach(d=>{ _signupDrivers[d.id] = d; });
-  sel.innerHTML = '<option value="">➕ I\'m new / not listed — I\'ll type it in</option>' +
+  sel.innerHTML = '<option value="">Select your name...</option>' +
     drivers.map(d=>`<option value="${d.id}">#${escapeHtml(d.number)} ${escapeHtml(d.name)}</option>`).join('');
 }
 
@@ -1315,7 +1316,6 @@ function onSignupDriverPick(){
     selectedSignupDriverId = null;
     nameEl.value = '';
     numEl.value = '';
-    nameEl.focus();
   }
 }
 // Stays stable across repeat taps of "Sign Up" for the same attempt, so if a
@@ -1326,21 +1326,29 @@ let _signupRef = null;
 async function submitSignup(){
   const msg = document.getElementById('signup-msg');
   const race_id = document.getElementById('su-race').value;
-  const name = document.getElementById('su-name').value.trim();
-  const car_number = document.getElementById('su-number').value.trim();
   const email = document.getElementById('su-email').value.trim();
   const phone = document.getElementById('su-phone').value.trim();
   const agree = document.getElementById('su-agree').checked;
   const signature = document.getElementById('su-signature').value.trim();
 
-  if(!race_id || !name || !car_number){
-    msg.innerHTML = '<div class="su-msg err">Race, name, and car number are required.</div>';
+  if(!race_id){
+    msg.innerHTML = '<div class="su-msg err">Please pick a race night.</div>';
     return;
   }
+  if(!selectedSignupDriverId || !_signupDrivers[selectedSignupDriverId]){
+    msg.innerHTML = '<div class="su-msg err">Please select your name from the driver list. Only registered drivers can sign up — if you\'re not listed, contact the track to get a driver profile set up first.</div>';
+    return;
+  }
+
   if(!agree || !signature){
     msg.innerHTML = '<div class="su-msg err">Please agree to the waiver and type your name to sign.</div>';
     return;
   }
+
+  // Name and number come straight from the selected driver record — sign-up is
+  // restricted to registered drivers, so we don't trust free-typed values.
+  const name = _signupDrivers[selectedSignupDriverId].name;
+  const car_number = String(_signupDrivers[selectedSignupDriverId].number);
 
   const btn = document.getElementById('su-submit-btn');
   btn.disabled = true; btn.textContent = 'Submitting...';
