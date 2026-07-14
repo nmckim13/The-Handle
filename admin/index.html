@@ -92,6 +92,12 @@
   .rn-tap-btn { font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 900; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; color: var(--white); padding: 10px 14px; cursor: pointer; transition: all 0.1s; }
   .rn-tap-btn:hover { background: var(--red); border-color: var(--red); }
   .rn-tap-btn:active { transform: scale(0.96); }
+  .rn-qgrid { display: flex; flex-direction: column; gap: 6px; }
+  .rn-qrow { display: grid; grid-template-columns: 1fr 128px; gap: 10px; align-items: center; padding: 7px 11px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
+  .rn-qrow input { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; font-family: 'Archivo', sans-serif; font-size: 14px; font-weight: 700; color: var(--white); width: 100%; }
+  .rn-qrow input:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 2px rgba(224,35,28,0.2); }
+  .rn-qprev-row { display: flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); margin-bottom: 4px; }
+  .rn-qprev-pos { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); font-weight: 900; font-size: 13px; color: var(--yellow); }
 </style>
 </head>
 <body>
@@ -1040,6 +1046,70 @@
   async function rnCheckIn(entryId) { await db.patch('entries', `id=eq.${entryId}`, { status: 'checked_in' }); rnRenderAll(); }
   async function rnWithdraw(entryId) { await db.patch('entries', `id=eq.${entryId}`, { status: 'withdrawn' }); rnRenderAll(); }
 
+  // QUALIFYING — times are kept on this device only (they're needed just to
+  // compute the heat grid at seed time; once heats are drawn everything is
+  // server-side again). Persisted per-race so a refresh mid-qualifying is safe.
+  function rnQualKey() { return `rn_qual_${RN.raceId}`; }
+  function rnLoadQual() { try { return JSON.parse(localStorage.getItem(rnQualKey())) || {}; } catch (e) { return {}; } }
+  function rnSaveQual(q) { localStorage.setItem(rnQualKey(), JSON.stringify(q)); }
+  function rnSetQual(entryId, val) {
+    const q = rnLoadQual();
+    const n = parseFloat(val);
+    if (val === '' || isNaN(n)) delete q[entryId]; else q[entryId] = n;
+    rnSaveQual(q);
+    rnRenderQualPreview();
+  }
+  function rnQualRank(entries) {
+    const q = rnLoadQual();
+    return entries.slice().sort((a, b) => {
+      const ta = q[a.id] == null ? Infinity : q[a.id];
+      const tb = q[b.id] == null ? Infinity : q[b.id];
+      return ta - tb;
+    });
+  }
+  function rnRenderQualPreview() {
+    const el = document.getElementById('rn-qual-preview');
+    if (!el || !RN._checkedInCache) return;
+    const q = rnLoadQual();
+    const ranked = rnQualRank(RN._checkedInCache);
+    el.innerHTML = '<div style="font-size:11px;color:var(--text2);font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Qualifying Order</div>' +
+      ranked.map((e, i) => `<div class="rn-qprev-row"><div class="rn-qprev-pos">${i + 1}</div>
+        <span class="item-name" style="color:${e.color || 'var(--white)'};font-size:13px">#${escapeHtml(e.car_number)} ${escapeHtml(e.name)}</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--text2);font-weight:700">${q[e.id] != null ? Number(q[e.id]).toFixed(3) + 's' : '—'}</span></div>`).join('');
+  }
+
+  // Seed heats STRAIGHT-UP from qualifying: snake-distribute by lap time so the
+  // fastest split across heats, each starting on pole (no invert). Mirrors the
+  // pill-draw's session/lineup creation, just with a qual-ranked order.
+  async function rnSeedHeatsFromQualifying(btn) {
+    if (!RN.raceId) return;
+    await rnGuarded(btn, async () => {
+      const state = await rnFetchState(RN.raceId);
+      if (state.sessions.some(s => s.session_type === 'heat')) { toast('Heats already drawn for this race night', true); return; }
+      const heatSize = parseInt(document.getElementById('rn-qual-heat-size').value) || 8;
+      const laps = parseInt(document.getElementById('rn-qual-heat-laps').value) || 8;
+      const entries = await db.get('entries', `race_id=eq.${RN.raceId}&status=eq.checked_in&order=created_at.asc`);
+      if (!entries.length) { toast('No checked-in drivers yet', true); return; }
+      const q = rnLoadQual();
+      const ranked = rnQualRank(entries);
+      const timed = ranked.filter(e => q[e.id] != null).length;
+      const numHeats = Math.max(1, Math.ceil(ranked.length / heatSize));
+      const heats = Array.from({ length: numHeats }, () => []);
+      ranked.forEach((e, i) => heats[i % numHeats].push(e)); // snake by rank
+      const nonEmpty = heats.filter(h => h.length);
+      if (!confirm(`Seed ${nonEmpty.length} heat${nonEmpty.length !== 1 ? 's' : ''} straight-up from qualifying (${timed}/${ranked.length} timed)? Fastest split across heats, each on pole. This can't be undone from here.`)) return;
+      const sessions = await Promise.all(nonEmpty.map(async (heatEntries, i) => {
+        const [session] = await db.post('race_sessions', { race_id: RN.raceId, session_type: 'heat', session_number: i + 1, laps_scheduled: laps, status: 'lineup_set' });
+        await db.post('lineups', heatEntries.map((e, idx) => ({ session_id: session.id, entry_id: e.id, starting_position: idx + 1 })));
+        return session;
+      }));
+      const firstSession = sessions.find(s => s.session_number === 1);
+      await rnSetLiveState(RN.raceId, { is_live: true, current_stage: 'heat', session_id: firstSession.id });
+      toast(`${nonEmpty.length} heat${nonEmpty.length !== 1 ? 's' : ''} seeded from qualifying!`);
+      rnRenderAll();
+    });
+  }
+
   // PILL DRAW
   async function rnPillDraw(btn) {
     if (!RN.raceId) return;
@@ -1228,6 +1298,7 @@
       await db.patch('race_sessions', `id=eq.${feature.id}`, { status: 'completed', completed_at: new Date().toISOString() });
       await rnSetLiveState(RN.raceId, { is_live: false, current_stage: 'complete', session_id: null });
 
+      try { localStorage.removeItem(rnQualKey()); } catch (e) {}
       toast('Official results posted!');
       populateSelects();
       loadRaceList();
@@ -1492,9 +1563,28 @@
     </div>`;
   }
 
+  function rnQualifyingCard(checkedIn) {
+    const q = rnLoadQual();
+    const rows = checkedIn.map(e => `<div class="rn-qrow">
+        <span class="item-name" style="color:${e.color || 'var(--white)'};font-size:13px">#${escapeHtml(e.car_number)} ${escapeHtml(e.name)}</span>
+        <input type="number" step="0.001" inputmode="decimal" placeholder="best lap (s)" value="${q[e.id] != null ? q[e.id] : ''}" oninput="rnSetQual('${e.id}', this.value)">
+      </div>`).join('') || '<em style="color:var(--text2);font-size:13px">No checked-in drivers yet.</em>';
+    return `<div class="card">
+      <div class="card-title">Qualifying <span style="color:var(--text2);font-weight:700;font-size:12px;text-transform:none;letter-spacing:0">— best lap sets the grid</span></div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Enter each driver's best qualifying lap, then seed heats straight-up — fastest split across heats, each on pole (no invert). Times are kept on this device just to build the grid, so seed the heats from the same device you enter them on. Prefer a random draw instead? Use Pill Draw below.</p>
+      <div class="rn-qgrid">${rows}</div>
+      <div id="rn-qual-preview" style="margin-top:12px"></div>
+      <div class="form-grid" style="margin-top:12px">
+        <div class="form-group"><label>Max cars per heat</label><input id="rn-qual-heat-size" type="number" value="8"></div>
+        <div class="form-group"><label>Heat laps</label><input id="rn-qual-heat-laps" type="number" value="8"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnSeedHeatsFromQualifying(this)">⏱️ Seed Heats from Qualifying</button></div>
+      </div>
+    </div>`;
+  }
+
   function rnPillDrawCard(count) {
     return `<div class="card">
-      <div class="card-title">Pill Draw</div>
+      <div class="card-title">Pill Draw <span style="color:var(--text2);font-weight:700;font-size:12px;text-transform:none;letter-spacing:0">— random draw (skip qualifying)</span></div>
       <p style="font-size:13px;color:var(--text2);font-weight:700;margin-bottom:12px">${count} checked in. Draw random starting order and split into heats.</p>
       <div class="form-grid">
         <div class="form-group"><label>Max cars per heat</label><input id="rn-heat-size" type="number" value="8"></div>
@@ -1561,7 +1651,10 @@
     const feature = state.sessions.find(s => s.session_type === 'feature');
 
     if (!heatSessions.length) {
-      if (checkedIn.length) html += rnPillDrawCard(checkedIn.length);
+      if (checkedIn.length) {
+        RN._checkedInCache = checkedIn;
+        html += rnQualifyingCard(checkedIn) + rnPillDrawCard(checkedIn.length);
+      }
     } else {
       heatSessions.forEach(hs => { html += rnSessionCard(hs, state); });
       const heatsDone = heatSessions.every(s => s.status === 'completed');
@@ -1580,6 +1673,7 @@
     }
 
     body.innerHTML = html;
+    rnRenderQualPreview();
   }
 
   // INIT
