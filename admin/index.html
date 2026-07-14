@@ -98,6 +98,10 @@
   .rn-qrow input:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 2px rgba(224,35,28,0.2); }
   .rn-qprev-row { display: flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); margin-bottom: 4px; }
   .rn-qprev-pos { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); font-weight: 900; font-size: 13px; color: var(--yellow); }
+  .rn-qgroup { margin-bottom: 12px; }
+  .rn-qgroup-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: var(--yellow); margin: 4px 0 6px; display: flex; align-items: center; gap: 8px; }
+  .rn-qgroup-title span { color: var(--text2); font-weight: 700; letter-spacing: 0; text-transform: none; font-size: 11px; }
+  .rn-qhint { font-size: 12px; color: var(--text2); font-weight: 600; padding: 10px 0; }
 </style>
 </head>
 <body>
@@ -1092,6 +1096,28 @@
         <span style="margin-left:auto;font-size:12px;color:var(--text2);font-weight:700">${q[e.id] != null ? Number(q[e.id]).toFixed(3) + 's' : '—'}</span></div>`).join('');
   }
 
+  // Qualifying GROUPS — the field runs timed laps in 2-4 groups (not all karts
+  // on track at once). Group assignments live on this device alongside the
+  // times; all group times combine into one overall order for heat seeding.
+  function rnQGroupsKey() { return `rn_qgroups_${RN.raceId}`; }
+  function rnLoadQGroups() { try { return JSON.parse(localStorage.getItem(rnQGroupsKey())) || { count: 1, byEntry: {} }; } catch (e) { return { count: 1, byEntry: {} }; } }
+  function rnSaveQGroups(g) { localStorage.setItem(rnQGroupsKey(), JSON.stringify(g)); }
+  function rnSetQGroupCount(v) {
+    const n = Math.max(1, Math.min(4, parseInt(v) || 1));
+    rnSaveQGroups({ count: n, byEntry: {} }); // changing the count invalidates old assignments
+    rnRenderAll();
+  }
+  function rnDrawQualGroups() {
+    const count = Math.max(1, Math.min(4, parseInt(document.getElementById('rn-qgroup-count').value) || 1));
+    const ids = (RN._checkedInCache || []).map(e => e.id);
+    const shuffled = ids.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
+    const byEntry = {};
+    shuffled.forEach((id, i) => { byEntry[id] = i % count; }); // round-robin -> balanced, random groups
+    rnSaveQGroups({ count, byEntry });
+    rnRenderAll();
+  }
+
   // Seed heats STRAIGHT-UP from qualifying: snake-distribute by lap time so the
   // fastest split across heats, each starting on pole (no invert). Mirrors the
   // pill-draw's session/lineup creation, just with a qual-ranked order.
@@ -1100,14 +1126,13 @@
     await rnGuarded(btn, async () => {
       const state = await rnFetchState(RN.raceId);
       if (state.sessions.some(s => s.session_type === 'heat')) { toast('Heats already drawn for this race night', true); return; }
-      const heatSize = parseInt(document.getElementById('rn-qual-heat-size').value) || 8;
       const laps = parseInt(document.getElementById('rn-qual-heat-laps').value) || 8;
       const entries = await db.get('entries', `race_id=eq.${RN.raceId}&status=eq.checked_in&order=created_at.asc`);
       if (!entries.length) { toast('No checked-in drivers yet', true); return; }
       const q = rnLoadQual();
       const ranked = rnQualRank(entries);
       const timed = ranked.filter(e => q[e.id] != null).length;
-      const numHeats = Math.max(1, Math.ceil(ranked.length / heatSize));
+      const numHeats = Math.max(1, Math.min(6, parseInt(document.getElementById('rn-qual-heat-count').value) || 2));
       const heats = Array.from({ length: numHeats }, () => []);
       ranked.forEach((e, i) => heats[i % numHeats].push(e)); // snake by rank
       const nonEmpty = heats.filter(h => h.length);
@@ -1318,7 +1343,7 @@
       await db.patch('race_sessions', `id=eq.${feature.id}`, { status: 'completed', completed_at: new Date().toISOString() });
       await rnSetLiveState(RN.raceId, { is_live: false, current_stage: 'complete', session_id: null });
 
-      try { localStorage.removeItem(rnQualKey()); } catch (e) {}
+      try { localStorage.removeItem(rnQualKey()); localStorage.removeItem(rnQGroupsKey()); } catch (e) {}
       toast('Official results posted!');
       populateSelects();
       loadRaceList();
@@ -1585,17 +1610,47 @@
 
   function rnQualifyingCard(checkedIn) {
     const q = rnLoadQual();
-    const rows = checkedIn.map(e => `<div class="rn-qrow">
+    const g = rnLoadQGroups();
+    const groupCount = Math.max(1, Math.min(4, g.count || 1));
+    const lapInput = e => `<div class="rn-qrow">
         <span class="item-name" style="color:${e.color || 'var(--white)'};font-size:13px">#${escapeHtml(e.car_number)} ${escapeHtml(e.name)}</span>
         <input type="number" step="0.001" inputmode="decimal" placeholder="best lap (s)" value="${q[e.id] != null ? q[e.id] : ''}" oninput="rnSetQual('${e.id}', this.value)">
-      </div>`).join('') || '<em style="color:var(--text2);font-size:13px">No checked-in drivers yet.</em>';
+      </div>`;
+    const emptyMsg = '<em style="color:var(--text2);font-size:13px">No checked-in drivers yet.</em>';
+
+    let inputsHtml, groupControls = '';
+    if (groupCount <= 1) {
+      inputsHtml = `<div class="rn-qgrid">${checkedIn.map(lapInput).join('') || emptyMsg}</div>`;
+    } else {
+      const drawn = Object.keys(g.byEntry).length > 0;
+      groupControls = `<button class="btn btn-outline" onclick="rnDrawQualGroups()">🎲 Draw Groups</button>`;
+      if (!drawn) {
+        inputsHtml = `<div class="rn-qhint">Hit “Draw Groups” to randomly split the ${checkedIn.length} checked-in karts into ${groupCount} qualifying groups.</div>`;
+      } else {
+        const buckets = Array.from({ length: groupCount }, () => []);
+        const unassigned = [];
+        checkedIn.forEach(e => { const gi = g.byEntry[e.id]; if (gi == null || gi >= groupCount) unassigned.push(e); else buckets[gi].push(e); });
+        const letter = i => String.fromCharCode(65 + i);
+        inputsHtml = buckets.map((b, i) => `<div class="rn-qgroup">
+            <div class="rn-qgroup-title">Group ${letter(i)}<span>${b.length} kart${b.length !== 1 ? 's' : ''}</span></div>
+            <div class="rn-qgrid">${b.map(lapInput).join('') || '<em style="color:var(--text2);font-size:12px">empty</em>'}</div>
+          </div>`).join('');
+        if (unassigned.length) inputsHtml += `<div class="rn-qgroup"><div class="rn-qgroup-title" style="color:var(--muted)">Unassigned<span>${unassigned.length}</span></div><div class="rn-qgrid">${unassigned.map(lapInput).join('')}</div></div>`;
+      }
+    }
+
+    const suggestHeats = checkedIn.length <= 8 ? 2 : checkedIn.length <= 20 ? 3 : 4;
     return `<div class="card">
-      <div class="card-title">Qualifying <span style="color:var(--text2);font-weight:700;font-size:12px;text-transform:none;letter-spacing:0">— best lap sets the grid</span></div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Enter each driver's best qualifying lap, then seed heats straight-up — fastest split across heats, each on pole (no invert). Times are kept on this device just to build the grid, so seed the heats from the same device you enter them on. Prefer a random draw instead? Use Pill Draw below.</p>
-      <div class="rn-qgrid">${rows}</div>
+      <div class="card-title">Qualifying <span style="color:var(--text2);font-weight:700;font-size:12px;text-transform:none;letter-spacing:0">— run in groups, best lap sets the grid</span></div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Split the field into qualifying groups, enter each kart's best lap, then seed the heats. All group times combine into one overall order, and heats seed straight-up — fastest split across heats, each on pole (no invert). Times &amp; groups live on this device, so run qualifying from one device.</p>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group"><label>Qualifying groups (2–4)</label><input id="rn-qgroup-count" type="number" min="1" max="4" value="${groupCount}" onchange="rnSetQGroupCount(this.value)"></div>
+        <div class="form-group"><label>&nbsp;</label>${groupControls || '<span style="font-size:12px;color:var(--text2)">One group — all karts qualify together.</span>'}</div>
+      </div>
+      ${inputsHtml}
       <div id="rn-qual-preview" style="margin-top:12px"></div>
       <div class="form-grid" style="margin-top:12px">
-        <div class="form-group"><label>Max cars per heat</label><input id="rn-qual-heat-size" type="number" value="8"></div>
+        <div class="form-group"><label>Number of heats (2–4)</label><input id="rn-qual-heat-count" type="number" min="1" max="6" value="${suggestHeats}"></div>
         <div class="form-group"><label>Heat laps</label><input id="rn-qual-heat-laps" type="number" value="8"></div>
         <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="rnSeedHeatsFromQualifying(this)">⏱️ Seed Heats from Qualifying</button></div>
       </div>
