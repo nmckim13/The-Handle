@@ -144,6 +144,8 @@
   .hp-countdown { display: inline-block; margin-top: 10px; font-family: 'Archivo', sans-serif; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; background: var(--panel-2); color: var(--yellow); border: 1px solid var(--line); padding: 4px 10px; border-radius: 6px; }
   .hp-signup-btn { display: block; width: 100%; margin-top: 16px; font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; background: var(--red); color: var(--white); border: none; border-radius: 8px; padding: 12px 16px; cursor: pointer; transition: background 0.1s; }
   .hp-signup-btn:hover { background: #bf1c17; }
+  .hp-signup-count { margin-top: 8px; font-size: 12px; font-weight: 800; color: var(--text2); text-align: center; }
+  .hp-signup-count b { color: var(--yellow); }
 
   /* STANDINGS */
   .nsc-subhdr { font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--red); margin-bottom: 14px; margin-top: 3px; }
@@ -1052,6 +1054,11 @@ async function loadHome() {
     const days = Math.ceil((nd - today) / 86400000);
     const nmo = nd.toLocaleString('en',{month:'long'}).toUpperCase();
     const countdown = days > 0 ? `${days} days away` : days === 0 ? 'Race day!' : 'TBD';
+    const signups = await get('entries', `race_id=eq.${next.id}&status=neq.withdrawn&select=id`);
+    const n = Array.isArray(signups) ? signups.length : 0;
+    const signupLine = n === 0
+      ? 'Be the first to sign up'
+      : `<b>${n}</b> driver${n !== 1 ? 's' : ''} signed up`;
     nextEl.innerHTML = `
       <div class="hp-lbl">Next Points Race</div>
       <div class="hp-round">Round ${next.round}</div>
@@ -1059,7 +1066,8 @@ async function loadHome() {
       <div class="hp-race-name">${next.name}</div>
       <div class="hp-location">The Handle · Westville, IN</div>
       <div class="hp-countdown">${countdown}</div>
-      <button class="hp-signup-btn" onclick="goToSignup('${next.id}')">Sign Up for This Race →</button>`;
+      <button class="hp-signup-btn" onclick="goToSignup('${next.id}')">Sign Up for This Race →</button>
+      <div class="hp-signup-count">${signupLine}</div>`;
   } else {
     nextEl.innerHTML = `<div class="hp-lbl">Next Points Race</div><div style="color:var(--text2);font-size:14px;padding-top:12px">Schedule TBD</div>`;
   }
