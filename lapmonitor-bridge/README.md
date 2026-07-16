@@ -34,20 +34,38 @@ big-screen.html / dashboard  (matches transponder → driver, shows laps)
    ```
    You should see `[joinRoom] ok` then `[snapshot] N driver(s) upserted` lines.
 
-## Running it on race night
+## Auto-launch: it follows "Run Race Night"
 
-The bridge holds a live socket, so it must run somewhere that stays up for the
-whole night. Options, cheapest first:
+The bridge **auto-follows the live race**. Leave `RACE_ID` blank and it polls
+`live_state` every ~15s:
 
-- **A laptop at the track** — just leave `npm start` running. Fine for a single
-  night; it auto-reconnects if wifi blips.
+- No race live → it stays connected but **idles** (writes nothing).
+- You hit **Run Race Night** in admin (which sets `live_state.is_live = true`) →
+  it **auto-starts** feeding timing for that race, no touch required.
+- Night completes (`is_live = false`) → it **idles** again.
+
+So there's nothing to "launch" on race night beyond what you already do in the
+admin. (The admin is a static site with no server, so it can't spawn the process
+itself — instead the always-on bridge watches the same live flag the dashboard
+does.)
+
+## Running it (must stay up for the whole night)
+
+The bridge holds a live socket, so it needs a host that stays up. Cheapest first:
+
+- **A laptop at the track** — leave `npm start` running. Fine for a single night;
+  auto-reconnects if wifi blips.
 - **Railway / Render / Fly.io** (always-on worker, a few $/mo) — deploy this
-  folder, set the same env vars in the dashboard, done. This is the "set it and
-  forget it" option. *(Vercel cron/serverless can't hold a socket, so it's not a
-  fit for the bridge itself.)*
+  folder once, set the env vars, and forget it: it idles between nights and
+  auto-feeds whenever you run a race night. *(Vercel cron/serverless can't hold a
+  socket, so it's not a fit for the bridge.)*
 
 The bridge is idempotent and upserts on `(room_id, transponder_id)`, so
 restarting it mid-night is safe — it just re-syncs from the next snapshot.
+
+Quick pre-night check (any machine, needs only the room link):
+`npm install && node probe.js 512060739` → prints the driver list if the room
+is readable.
 
 ## How this was built (and what to confirm with your LapMonitor contact)
 

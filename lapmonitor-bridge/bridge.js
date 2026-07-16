@@ -36,7 +36,9 @@ const AUTH_TOKEN   = env('LAPMONITOR_AUTH_TOKEN', '');   // set once the officia
 const SUPABASE_URL = env('SUPABASE_URL', 'https://lnsvacnbgmklpkgzbodb.supabase.co');
 const SUPABASE_KEY = env('SUPABASE_KEY');                // anon key is fine (RLS is open), service key also works
 const RACE_ID_ENV  = env('RACE_ID', '');                // optional; else auto-detected from the live race
-const DRIVER_REFRESH_MS = Number(env('DRIVER_REFRESH_MS', '30000'));
+// How often (ms) to re-read driver→transponder assignments AND check whether a
+// race went live. Lower = faster auto-start when you hit Run Race Night.
+const POLL_MS = Number(env('POLL_MS', env('DRIVER_REFRESH_MS', '15000')));
 
 for (const [k, v] of Object.entries({ LAPMONITOR_ROOM_ID: ROOM_ID, SUPABASE_KEY })) {
   if (!v) { console.error(`Missing required env ${k}. Copy .env.example to .env and fill it in.`); process.exit(1); }
@@ -45,7 +47,9 @@ for (const [k, v] of Object.entries({ LAPMONITOR_ROOM_ID: ROOM_ID, SUPABASE_KEY 
 // --- State ----------------------------------------------------------------
 let transponderToDriver = new Map(); // transponderId(int) -> { id, name, number, color }
 let raceId = RACE_ID_ENV || null;
+let raceLive = false;                // is a race currently live (or RACE_ID pinned)?
 let lastSnapshotAt = 0;
+let _lastIdleLog = 0;
 
 // --- Supabase REST helpers ------------------------------------------------
 function sb(path, init = {}) {
@@ -74,19 +78,38 @@ async function refreshDrivers() {
   }
 }
 
-async function resolveRaceId() {
-  if (raceId) return raceId;
+// Follow whatever race is currently live in the admin. This is what makes the
+// bridge effectively "auto-launch": deploy it once (always-on) and it idles
+// until you hit Run Race Night — which flips a race live in live_state — then
+// it starts feeding timing for that race automatically, and idles again when
+// the night completes. A pinned RACE_ID env overrides this (always live).
+async function refreshLiveRace() {
+  if (RACE_ID_ENV) {
+    if (!raceLive) console.log(`[race] RACE_ID pinned to ${RACE_ID_ENV} — always feeding`);
+    raceId = RACE_ID_ENV; raceLive = true;
+    return;
+  }
+  let next = null;
   try {
     const res = await sb('live_state?select=race_id&is_live=eq.true&limit=1');
-    if (res.ok) {
-      const [row] = await res.json();
-      if (row && row.race_id) { raceId = row.race_id; console.log(`[race] using live race_id ${raceId}`); }
-    }
+    if (res.ok) { const [row] = await res.json(); if (row && row.race_id) next = row.race_id; }
+    else return; // keep current state on a transient error rather than dropping the feed
   } catch (e) {
-    console.error('[race] could not auto-detect live race:', e.message);
+    console.error('[race] live_state check failed:', e.message);
+    return;
   }
-  if (!raceId) console.warn('[race] no live race found — live_timing rows will have race_id=null. Set RACE_ID or mark a race live in admin.');
-  return raceId;
+  if (next && next !== raceId) console.log(`[race] race night is LIVE (${next}) — feeding timing`);
+  if (!next && raceLive) console.log('[race] no race live — idling, timing paused');
+  raceId = next;
+  raceLive = !!next;
+}
+
+function logIdle() {
+  const now = Date.now();
+  if (now - _lastIdleLog > 30000) {
+    console.log('[idle] receiving laps, but no race is live — not writing. Hit "Run Race Night" in admin to start.');
+    _lastIdleLog = now;
+  }
 }
 
 // Upsert a batch of rows keyed by (room_id, transponder_id).
@@ -137,7 +160,9 @@ function rank(a, b) {
 async function handleSnapshot(data) {
   if (!Array.isArray(data)) return;
   lastSnapshotAt = Date.now();
-  await resolveRaceId();
+  // Only write while a race night is live (auto-launch behavior). When nothing
+  // is live the bridge stays connected and quietly idles.
+  if (!raceLive || !raceId) { logIdle(); return; }
 
   const drivers = data.filter(d => d && d.kind === 'driver' && d.transponderId != null);
   const summarized = drivers.map(d => ({
@@ -210,14 +235,17 @@ function connect() {
 (async function main() {
   console.log(`LapMonitor bridge → ${SERVER} room ${ROOM_ID} → ${SUPABASE_URL}`);
   await refreshDrivers();
-  await resolveRaceId();
-  setInterval(refreshDrivers, DRIVER_REFRESH_MS); // pick up transponders assigned mid-setup
+  await refreshLiveRace();
+  // Re-check driver→transponder assignments and the live race on a loop, so
+  // transponders assigned mid-setup are picked up and "Run Race Night" is
+  // detected automatically without restarting the bridge.
+  setInterval(() => { refreshDrivers(); refreshLiveRace(); }, POLL_MS);
   connect();
 
   // Staleness heartbeat so an unattended bridge visibly reports it's alive/idle.
   setInterval(() => {
     const age = lastSnapshotAt ? Math.round((Date.now() - lastSnapshotAt) / 1000) + 's ago' : 'never';
-    console.log(`[heartbeat] last snapshot: ${age}`);
+    console.log(`[heartbeat] ${raceLive ? 'LIVE, feeding' : 'idle, no race live'} — last snapshot: ${age}`);
   }, 60000);
 })();
 

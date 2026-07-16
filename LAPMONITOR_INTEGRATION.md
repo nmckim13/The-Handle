@@ -40,13 +40,15 @@ driver in its feed). Matching by transponder is reliable; matching by name isn't
 2. **Assign transponders** — admin → Drivers → **Transponder** on each driver,
    enter the number on their transponder. "no transponder" (red) = won't show
    live times.
-3. **Run the bridge on race night** — see `lapmonitor-bridge/README.md`. On a
-   track laptop: `cd lapmonitor-bridge && cp .env.example .env` (fill in the
-   Supabase anon key), `npm install`, `npm start`. Or deploy it to an always-on
-   host (Railway/Render/Fly). It auto-detects the live race from `live_state`.
+3. **Run the bridge (once)** — see `lapmonitor-bridge/README.md`. On a track
+   laptop: `cd lapmonitor-bridge && cp .env.example .env` (fill in the Supabase
+   anon key), `npm install`, `npm start`. Or deploy it to an always-on host
+   (Railway/Render/Fly) and leave it running between nights.
 
-That's it — with a race marked live and the bridge running, lap times appear on
-the big screen and update in real time.
+That's it. The bridge **auto-follows "Run Race Night"**: it idles until you mark
+a race live in the admin, then auto-starts feeding timing to the big screen, and
+idles again when the night completes — no per-night steps beyond what you
+already do in the admin.
 
 ## Questions for your LapMonitor contact
 
