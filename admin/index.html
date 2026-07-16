@@ -662,10 +662,26 @@
     loadRaceList(); populateSelects(); rnPopulateRaceSelect();
   }
   async function deleteRace(id) {
-    if (!confirm('Remove this race?')) return;
-    await db.del('races', id);
+    if (!confirm('Remove this race? This can only be done before any sign-ups, sessions, or official results exist for it.')) return;
+    try {
+      await db.del('races', id);
+    } catch (e) {
+      // A foreign key blocks the delete when the race still has entries,
+      // race_sessions, or official results hanging off it.
+      toast('Could not remove race — clear its sign-ups, sessions, and results first.', true);
+      return;
+    }
+    // Like drivers/results, a delete can silently affect 0 rows if the races
+    // delete policy hasn't been applied (migrations/006) — verify it actually
+    // happened before claiming success, so the button can't lie.
+    const still = await db.get('races', `id=eq.${id}&select=id`);
+    if (still.length) {
+      toast('Race not removed — the database is blocking race deletes (apply migration 006).', true);
+      return;
+    }
+    if (RN.raceId === id) RN.raceId = null;
     toast('Race removed');
-    loadRaceList(); populateSelects(); rnPopulateRaceSelect();
+    loadRaceList(); populateSelects(); rnPopulateRaceSelect(); rnRenderAll();
   }
 
   // RESULTS
@@ -1071,6 +1087,19 @@
   // ===== RACE NIGHT =====
   const RN = { raceId: null };
   const STAGE_ORDER = { heat: 0, b_main: 1, feature: 2 };
+
+  // Sort entries by car number so the check-in list and qualifying lap-entry
+  // grid read in numeric order — the manager can find a given kart at a glance
+  // instead of scanning a sign-up-time jumble. Car numbers can be alphanumeric,
+  // so fall back to a string compare when they aren't plain integers.
+  function rnByCarNumber(a, b) {
+    const na = parseInt(a.car_number, 10), nb = parseInt(b.car_number, 10);
+    const aNum = !isNaN(na), bNum = !isNaN(nb);
+    if (aNum && bNum && na !== nb) return na - nb;
+    if (aNum && !bNum) return -1;
+    if (!aNum && bNum) return 1;
+    return String(a.car_number).localeCompare(String(b.car_number));
+  }
 
   function shuffle(arr) {
     const a = arr.slice();
@@ -1628,12 +1657,12 @@
     const liveTag = session.status === 'in_progress' ? ' <span style="color:var(--red);font-size:11px;letter-spacing:1px">● LIVE</span>' : '';
     const flag = session.flag_state || 'green';
 
-    const finishedHtml = finished.length ? `<ol style="margin:10px 0 0 20px;font-size:13px;font-weight:700">
-      ${finished.map(r => `<li style="margin-bottom:4px;color:${r.entry?.color || 'var(--white)'};display:flex;align-items:center;gap:8px;justify-content:space-between;max-width:340px">
-        <span style="display:inline-flex;align-items:center;gap:7px">${rnNumG(r.entry, 22)} ${escapeHtml(r.entry?.name || '—')}${r.best_lap_seconds != null ? ` <span style="color:var(--text2);font-weight:600">— ${Number(r.best_lap_seconds).toFixed(3)}s</span>` : ''}</span>
+    const finishedHtml = finished.length ? `<div style="margin:10px 0 0;font-size:13px;font-weight:700">
+      ${finished.map(r => `<div style="margin-bottom:4px;display:flex;align-items:center;gap:8px;justify-content:space-between;max-width:360px">
+        <span style="display:inline-flex;align-items:center;gap:7px"><span style="min-width:30px;color:var(--yellow);font-weight:900">P${r.finishing_position}</span>${rnNumG(r.entry, 22)} <span style="color:${r.entry?.color || 'var(--white)'}">${escapeHtml(r.entry?.name || '—')}</span>${r.best_lap_seconds != null ? ` <span style="color:var(--text2);font-weight:600">— ${Number(r.best_lap_seconds).toFixed(3)}s</span>` : ''}</span>
         ${session.status !== 'completed' ? `<button class="btn btn-outline" style="padding:1px 7px;font-size:11px" title="Remove this finisher" onclick="rnRemoveFinisher('${session.id}','${r.id}',${r.finishing_position},this)">✕</button>` : ''}
-      </li>`).join('')}
-    </ol>` : '';
+      </div>`).join('')}
+    </div>` : '';
 
     const flagHtml = session.status !== 'completed' ? `
       <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -1649,8 +1678,9 @@
     ` : '';
 
     const tapHtml = session.status !== 'completed' ? `
-      ${stillRacing.length ? `<div class="rn-tap-grid" style="margin-top:10px">
-        ${stillRacing.map(l => `<button class="rn-tap-btn" style="display:inline-flex;align-items:center;gap:7px" onclick="rnTapFinish('${session.id}','${l.entry_id}',this)">${rnNumG(l.entry, 24)} ${escapeHtml(l.entry?.name || '—')}</button>`).join('')}
+      ${stillRacing.length ? `<div style="margin-top:12px;font-size:11px;color:var(--text2);font-weight:800;text-transform:uppercase;letter-spacing:1px">Tap each kart as it crosses the line <span style="font-weight:600;text-transform:none;letter-spacing:0">(grid order — P# = start spot)</span></div>
+      <div class="rn-tap-grid" style="margin-top:8px">
+        ${stillRacing.map(l => `<button class="rn-tap-btn" style="display:inline-flex;align-items:center;gap:7px" onclick="rnTapFinish('${session.id}','${l.entry_id}',this)"><span style="opacity:.55;font-weight:800">P${l.starting_position}</span>${rnNumG(l.entry, 24)} ${escapeHtml(l.entry?.name || '—')}</button>`).join('')}
       </div>` : ''}
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="rnCompleteSession('${session.id}')">Mark ${rnSessionTitle(session)} Complete</button>
@@ -1674,9 +1704,9 @@
   }
 
   function rnCheckInCard(state) {
-    const checkedIn = state.entries.filter(e => e.status === 'checked_in');
-    const pending = state.entries.filter(e => e.status === 'registered');
-    const withdrawn = state.entries.filter(e => e.status === 'withdrawn');
+    const checkedIn = state.entries.filter(e => e.status === 'checked_in').slice().sort(rnByCarNumber);
+    const pending = state.entries.filter(e => e.status === 'registered').slice().sort(rnByCarNumber);
+    const withdrawn = state.entries.filter(e => e.status === 'withdrawn').slice().sort(rnByCarNumber);
     const signedUp = checkedIn.length + pending.length;
 
     // Not-yet-here first (they need action), then checked in, then withdrawn.
@@ -1864,7 +1894,7 @@
     let html = rnRaceHeaderCard(state.race) + rnCheckInCard(state);
     if (state.sessions.length) html += rnLapMonitorImportCard(state);
 
-    const checkedIn = state.entries.filter(e => e.status === 'checked_in');
+    const checkedIn = state.entries.filter(e => e.status === 'checked_in').slice().sort(rnByCarNumber);
     const heatSessions = state.sessions.filter(s => s.session_type === 'heat');
     const bmain = state.sessions.find(s => s.session_type === 'b_main');
     const feature = state.sessions.find(s => s.session_type === 'feature');

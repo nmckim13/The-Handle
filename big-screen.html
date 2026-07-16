@@ -124,15 +124,29 @@ async function refresh(){
 
   const races = await get('races', `select=*&id=eq.${state.race_id}`);
   const race = races[0];
+  // Fetch every session for the race and follow the one that's actually active
+  // (in progress, else being scored, else next up). live_state.session_id sticks
+  // on the first heat all through heat racing, so it can't be trusted to point at
+  // what's on track — this lets the kiosk advance heat to heat on its own as the
+  // manager scores each one.
+  const STAGE_ORDER = { heat: 0, b_main: 1, feature: 2 };
+  const allSessions = (await get('race_sessions', `select=*&race_id=eq.${state.race_id}`))
+    .sort((a, b) => (STAGE_ORDER[a.session_type] - STAGE_ORDER[b.session_type]) || (a.session_number - b.session_number));
   let session = null, lineup = [], results = [];
-  if(state.session_id){
-    const sessions = await get('race_sessions', `select=*&id=eq.${state.session_id}`);
-    session = sessions[0];
-    const [lu, res] = await Promise.all([
-      get('lineups', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=starting_position.asc`),
-      get('session_results', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=finishing_position.asc`)
-    ]);
-    lineup = lu; results = res;
+  if(allSessions.length){
+    const resultCounts = await get('session_results', `select=session_id&session_id=in.(${allSessions.map(s => s.id).join(',')})`);
+    const hasRes = id => resultCounts.some(r => r.session_id === id);
+    session = allSessions.find(s => s.status === 'in_progress')
+      || allSessions.find(s => hasRes(s.id) && s.status !== 'completed')
+      || allSessions.find(s => s.status !== 'completed')
+      || allSessions[allSessions.length - 1];
+    if(session){
+      const [lu, res] = await Promise.all([
+        get('lineups', `select=*,entries(name,car_number,color)&session_id=eq.${session.id}&order=starting_position.asc`),
+        get('session_results', `select=*,entries(name,car_number,color)&session_id=eq.${session.id}&order=finishing_position.asc`)
+      ]);
+      lineup = lu; results = res;
+    }
   }
 
   const stageLabel = STAGE_LABEL[state.current_stage] || state.current_stage;
