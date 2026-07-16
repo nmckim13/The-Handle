@@ -48,6 +48,16 @@
   .timing-pane { position: relative; background: var(--panel-2); }
   .timing-label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--text2); background: rgba(10,10,10,0.75); padding: 5px 14px; border-radius: 999px; z-index: 2; }
   .timing-pane iframe { width: 100%; height: 100%; border: none; display: block; }
+  .live-timing { width: 100%; height: 100%; overflow-y: auto; padding: 48px 0 8px; }
+  table.timing-tbl { width: 100%; border-collapse: collapse; }
+  table.timing-tbl th { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); text-align: right; padding: 8px 20px; border-bottom: 1px solid var(--line); }
+  table.timing-tbl th.l { text-align: left; }
+  table.timing-tbl td { font-size: 24px; font-weight: 800; padding: 10px 20px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+  table.timing-tbl td.pos { color: var(--yellow); width: 56px; text-align: left; }
+  table.timing-tbl td.drv { text-align: left; }
+  table.timing-tbl tr.leader td.best { color: var(--green); }
+  .timing-empty { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .timing-empty iframe { width: 100%; height: 100%; border: none; display: block; }
 </style>
 </head>
 <body>
@@ -77,7 +87,7 @@
 
   <div class="timing-pane">
     <div class="timing-label">Live Timing — LapMonitor</div>
-    <iframe src="https://lapmonitor.live/512060739" allowfullscreen></iframe>
+    <div class="live-timing" id="live-timing"></div>
   </div>
 </div>
 
@@ -90,6 +100,51 @@ const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const { FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, escapeHtml } = window.RaceNight;
 const get = window.RaceNight.createClient(SURL, SKEY).get;
 
+// LapMonitor room this board mirrors. The live_timing rows are written by the
+// bridge worker (lapmonitor-bridge/), keyed by transponder, and joined here to
+// our drivers so the board shows car #, name and color — not just raw names.
+const LM_ROOM_ID = '512060739';
+let _currentRaceId = null;
+const fmtLap = s => (s == null ? '—' : Number(s).toFixed(3));
+
+async function renderLiveTiming(raceId){
+  const el = document.getElementById('live-timing');
+  if(!el) return;
+  _currentRaceId = raceId || _currentRaceId;
+  let active = [];
+  try {
+    const filter = _currentRaceId ? `race_id=eq.${_currentRaceId}` : `room_id=eq.${LM_ROOM_ID}`;
+    const rows = await get('live_timing', `select=*,drivers(name,number,color)&${filter}&order=position.asc`);
+    active = rows.filter(r => r.laps_count > 0);
+  } catch(e){ active = []; } // table missing (pre-migration) or fetch blip → fall back to the embed
+
+  if(!active.length){
+    // No live laps yet (bridge not running, or session hasn't started) —
+    // fall back to LapMonitor's own embedded board so the pane is never blank.
+    if(!el.querySelector('iframe')){
+      el.innerHTML = `<div class="timing-empty"><iframe src="https://lapmonitor.live/${LM_ROOM_ID}" allowfullscreen></iframe></div>`;
+    }
+    return;
+  }
+  el.innerHTML = `
+    <table class="timing-tbl">
+      <thead><tr><th class="l">Pos</th><th class="l">Driver</th><th>Laps</th><th>Last</th><th>Best</th></tr></thead>
+      <tbody>
+        ${active.map((r,i) => {
+          const d = r.drivers;
+          const label = d ? `#${escapeHtml(String(d.number))} ${escapeHtml(d.name)}` : escapeHtml(r.lm_name || ('T' + r.transponder_id));
+          return `<tr class="${i===0?'leader':''}">
+            <td class="pos">${r.position || i+1}</td>
+            <td class="drv" style="color:${d ? d.color : '#fff'}">${label}</td>
+            <td>${r.laps_count}</td>
+            <td>${fmtLap(r.last_seconds)}</td>
+            <td class="best">${fmtLap(r.best_seconds)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
 async function refresh(){
   const stageCard = document.getElementById('stage-card');
   const titleEl = document.getElementById('stage-title-text');
@@ -100,6 +155,7 @@ async function refresh(){
 
   const rows = await get('live_state', 'select=*&is_live=eq.true&limit=1');
   const state = rows[0];
+  renderLiveTiming(state && state.race_id); // timing pane runs independently of the stage board
   if(!state){
     titleEl.textContent = 'Not Live Right Now';
     metaEl.textContent = 'Check back on race night';
@@ -157,10 +213,12 @@ function ensureRealtime(){
   if(_channel || typeof window.supabase === 'undefined') return;
   const sb = window.supabase.createClient(SURL, SKEY);
   const debouncedRefresh = debounce(refresh, 400);
+  const debouncedTiming = debounce(() => renderLiveTiming(_currentRaceId), 400);
   _channel = sb.channel('race-night-big-screen')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'live_state' }, debouncedRefresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'session_results' }, debouncedRefresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'race_sessions' }, debouncedRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'live_timing' }, debouncedTiming)
     .subscribe();
 }
 

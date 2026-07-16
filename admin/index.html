@@ -195,6 +195,7 @@
         <div class="form-group"><label>Full Name</label><input id="d-name" placeholder="Tyler Mercer"></div>
         <div class="form-group"><label>Car Number</label><input id="d-number" placeholder="7"></div>
         <div class="form-group"><label>Color (hex)</label><input id="d-color" placeholder="#F26419" value="#F26419"></div>
+        <div class="form-group"><label>Transponder ID <span style="color:var(--text2);font-weight:600">(optional)</span></label><input id="d-transponder" inputmode="numeric" placeholder="e.g. 18"></div>
         <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="addDriver()">Add Driver</button></div>
       </div>
       <div class="item-list">
@@ -565,9 +566,10 @@
       <div class="item-row">
         <div>
           <div class="item-name" style="color:${d.color}">#${escapeHtml(String(d.number))} ${escapeHtml(d.name)}</div>
-          <div class="item-meta">${d.wins} wins · ${d.starts} starts</div>
+          <div class="item-meta">${d.wins} wins · ${d.starts} starts · ${d.transponder_id != null ? 'Transponder ' + escapeHtml(String(d.transponder_id)) : '<span style="color:var(--red)">no transponder</span>'}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-outline" onclick="editDriverTransponder('${d.id}')">Transponder</button>
           <button class="btn btn-danger" onclick="editDriverNumber('${d.id}')">Edit #</button>
           <button class="btn btn-danger" onclick="deleteDriver('${d.id}')">Remove</button>
         </div>
@@ -597,15 +599,69 @@
     toast('Number updated');
     renderDriverList(); populateSelects();
   }
+  // Transponder assignment: the LapMonitor transponder ID (an integer, e.g.
+  // 18) each driver races with. This is how the live LapMonitor feed is
+  // matched back to our roster — the bridge worker keys live_timing by
+  // transponder, so a driver with no transponder won't show live lap times.
+  // Parses to an int; blank clears the assignment. The DB has a unique index
+  // on transponder_id, so handing the same transponder to two drivers is
+  // rejected — surface that clearly instead of a raw error.
+  function editDriverTransponder(id) {
+    const d = _drivers.find(x => x.id === id);
+    if (!d) return;
+    const cur = d.transponder_id != null ? String(d.transponder_id) : '';
+    const next = prompt(`LapMonitor transponder ID for ${d.name}\n(the number on their transponder; leave blank to clear):`, cur);
+    if (next == null) return; // cancelled
+    const raw = String(next).trim();
+    let transponder_id = null;
+    if (raw !== '') {
+      const n = parseInt(raw, 10);
+      if (isNaN(n) || n < 0 || String(n) !== raw) { toast('Transponder must be a whole number', true); return; }
+      transponder_id = n;
+    }
+    if (transponder_id === (d.transponder_id ?? null)) return; // no change
+    saveDriverTransponder(id, transponder_id);
+  }
+  async function saveDriverTransponder(id, transponder_id) {
+    try {
+      await db.patch('drivers', `id=eq.${id}`, { transponder_id });
+    } catch (e) {
+      const msg = /duplicate key|23505|already exists/i.test(e.message || '')
+        ? 'That transponder is already assigned to another driver. Clear it there first.'
+        : ('Could not save transponder: ' + (e.message || 'database error'));
+      toast(msg, true);
+      return;
+    }
+    const d = _drivers.find(x => x.id === id);
+    if (d) d.transponder_id = transponder_id;
+    toast(transponder_id == null ? 'Transponder cleared' : 'Transponder assigned');
+    renderDriverList();
+  }
   async function addDriver() {
     const name = document.getElementById('d-name').value.trim();
     const number = document.getElementById('d-number').value.trim();
     const color = document.getElementById('d-color').value.trim() || '#F26419';
+    const transRaw = document.getElementById('d-transponder').value.trim();
     if (!name || !number) { toast('Name and number required', true); return; }
-    await db.post('drivers', { name, number, color, wins: 0, starts: 0 });
+    const driver = { name, number, color, wins: 0, starts: 0 };
+    if (transRaw !== '') {
+      const n = parseInt(transRaw, 10);
+      if (isNaN(n) || n < 0 || String(n) !== transRaw) { toast('Transponder must be a whole number', true); return; }
+      driver.transponder_id = n;
+    }
+    try {
+      await db.post('drivers', driver);
+    } catch (e) {
+      const msg = /duplicate key|23505|already exists/i.test(e.message || '')
+        ? `Transponder ${transRaw} is already assigned to another driver.`
+        : ('Could not add driver: ' + (e.message || 'database error'));
+      toast(msg, true);
+      return;
+    }
     toast(`${name} added!`);
     document.getElementById('d-name').value = '';
     document.getElementById('d-number').value = '';
+    document.getElementById('d-transponder').value = '';
     loadDriverList(); populateSelects();
   }
   async function deleteDriver(id) {

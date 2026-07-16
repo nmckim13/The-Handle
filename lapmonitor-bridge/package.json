@@ -1,0 +1,16 @@
+{
+  "name": "lapmonitor-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mirrors LapMonitor live lap timing into the yardkartz Supabase project so the race dashboard can show per-driver lap times, matched by transponder.",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.5"
+  }
+}
