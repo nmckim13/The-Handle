@@ -465,6 +465,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="/race-night-client.js"></script>
+<script src="/driver-graphics.js"></script>
 <script>
   const SUPABASE_URL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
@@ -1609,6 +1610,9 @@
   }
 
   // RENDER
+  // Driver number graphic (shared /driver-graphics.js) — falls back to a styled number.
+  function rnNumG(entry, size) { return window.DriverGraphics.numHtml(entry && entry.name, entry && entry.car_number, size || 22); }
+
   function rnSessionTitle(session) {
     if (session.session_type === 'heat') return `Heat ${session.session_number}`;
     if (session.session_type === 'b_main') return 'B-Main';
@@ -1626,7 +1630,7 @@
 
     const finishedHtml = finished.length ? `<ol style="margin:10px 0 0 20px;font-size:13px;font-weight:700">
       ${finished.map(r => `<li style="margin-bottom:4px;color:${r.entry?.color || 'var(--white)'};display:flex;align-items:center;gap:8px;justify-content:space-between;max-width:340px">
-        <span>#${escapeHtml(r.entry?.car_number || '?')} ${escapeHtml(r.entry?.name || '—')}${r.best_lap_seconds != null ? ` <span style="color:var(--text2);font-weight:600">— ${Number(r.best_lap_seconds).toFixed(3)}s</span>` : ''}</span>
+        <span style="display:inline-flex;align-items:center;gap:7px">${rnNumG(r.entry, 22)} ${escapeHtml(r.entry?.name || '—')}${r.best_lap_seconds != null ? ` <span style="color:var(--text2);font-weight:600">— ${Number(r.best_lap_seconds).toFixed(3)}s</span>` : ''}</span>
         ${session.status !== 'completed' ? `<button class="btn btn-outline" style="padding:1px 7px;font-size:11px" title="Remove this finisher" onclick="rnRemoveFinisher('${session.id}','${r.id}',${r.finishing_position},this)">✕</button>` : ''}
       </li>`).join('')}
     </ol>` : '';
@@ -1646,7 +1650,7 @@
 
     const tapHtml = session.status !== 'completed' ? `
       ${stillRacing.length ? `<div class="rn-tap-grid" style="margin-top:10px">
-        ${stillRacing.map(l => `<button class="rn-tap-btn" onclick="rnTapFinish('${session.id}','${l.entry_id}',this)">#${escapeHtml(l.entry?.car_number || '?')} ${escapeHtml(l.entry?.name || '—')}</button>`).join('')}
+        ${stillRacing.map(l => `<button class="rn-tap-btn" style="display:inline-flex;align-items:center;gap:7px" onclick="rnTapFinish('${session.id}','${l.entry_id}',this)">${rnNumG(l.entry, 24)} ${escapeHtml(l.entry?.name || '—')}</button>`).join('')}
       </div>` : ''}
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="rnCompleteSession('${session.id}')">Mark ${rnSessionTitle(session)} Complete</button>
@@ -1686,7 +1690,7 @@
       const contact = [e.email, e.phone].filter(Boolean).map(escapeHtml).join(' · ');
       const meta = [contact, e.created_at ? 'signed up ' + rnTimeAgo(e.created_at) : ''].filter(Boolean).join(' · ');
       return `<div class="rn-entry${wd ? ' dim' : (checked ? ' done' : '')}">
-        <div class="rn-entry-num" style="color:${e.color || 'var(--white)'}">#${escapeHtml(e.car_number)}</div>
+        <div class="rn-entry-num" style="color:${e.color || 'var(--white)'};display:flex;align-items:center">${rnNumG(e, 30)}</div>
         <div style="flex:1;min-width:0">
           <div class="rn-entry-name">${escapeHtml(e.name)} ${badge}</div>
           <div class="rn-entry-meta">${meta || 'walk-up / no contact info'}</div>

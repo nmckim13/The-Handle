@@ -42,8 +42,20 @@
   table.board-tbl td { font-size: 28px; font-weight: 800; padding: 12px 24px; border-bottom: 1px solid var(--line); }
   table.board-tbl tr:last-child td { border-bottom: none; }
   table.board-tbl td.pos { color: var(--yellow); width: 70px; }
+  table.board-tbl td.num { width: 92px; padding-right: 4px; }
+  table.board-tbl td.num img.dg-num-img { height: 46px; }
   .still-racing { font-size: 18px; font-weight: 700; color: var(--text2); padding: 16px 24px; }
   .empty-state { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 26px; font-weight: 800; color: var(--text2); text-align: center; padding: 40px; }
+
+  /* Starting-grid — what a driver sees when the heat lineup drops. */
+  .grid-head { font-size: 15px; text-transform: uppercase; letter-spacing: 2px; color: var(--yellow); font-weight: 900; padding: 12px 24px 6px; }
+  .grid-list { display: flex; flex-direction: column; }
+  .grid-row { display: grid; grid-template-columns: 58px 96px 1fr; align-items: center; gap: 14px; padding: 9px 24px; border-bottom: 1px solid var(--line); }
+  .grid-row:last-child { border-bottom: none; }
+  .grid-row .gr-pos { font-size: 30px; font-weight: 900; color: var(--yellow); text-align: center; }
+  .grid-row .gr-num { display: flex; align-items: center; justify-content: center; }
+  .grid-row .gr-num img.dg-num-img { height: 52px; }
+  .grid-row .gr-name { font-size: 27px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .timing-pane { position: relative; background: var(--panel-2); }
   .timing-label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--text2); background: rgba(10,10,10,0.75); padding: 5px 14px; border-radius: 999px; z-index: 2; }
@@ -83,6 +95,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="/race-night-client.js"></script>
+<script src="/driver-graphics.js"></script>
 <script>
 const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
@@ -137,6 +150,8 @@ async function refresh(){
     flagEl.className = 'flag-banner';
   }
 
+  const numG = (e, size) => window.DriverGraphics.numHtml(e?.name, e?.car_number, size);
+
   const finishedIds = new Set(results.map(r => r.entry_id));
   const stillRacing = lineup.filter(l => !finishedIds.has(l.entry_id));
 
@@ -144,10 +159,26 @@ async function refresh(){
     boardWrap.innerHTML = '<div class="empty-state">Lineup coming up…</div>';
     return;
   }
+
+  // Before anyone has finished, the board IS the starting grid — each driver sees
+  // exactly where they line up, with their own number graphic next to them.
+  if(!results.length){
+    boardWrap.innerHTML = `
+      <div class="grid-head">Starting Lineup${stageSessionLabel ? ' — ' + escapeHtml(stageSessionLabel) : ''}</div>
+      <div class="grid-list">
+        ${lineup.map(l => `<div class="grid-row">
+          <div class="gr-pos">${l.starting_position}</div>
+          <div class="gr-num">${numG(l.entries, 52)}</div>
+          <div class="gr-name" style="color:${l.entries?.color || '#fff'}">${escapeHtml(l.entries?.name || '—')}</div>
+        </div>`).join('')}
+      </div>`;
+    return;
+  }
+
   boardWrap.innerHTML = `
-    ${results.length ? `<table class="board-tbl"><thead><tr><th>Pos</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
-      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td style="color:${r.entries?.color || '#fff'}">#${escapeHtml(r.entries?.car_number || '?')} ${escapeHtml(r.entries?.name || '—')}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
-    </tbody></table>` : ''}
+    <table class="board-tbl"><thead><tr><th>Pos</th><th>No.</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
+      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td class="num">${numG(r.entries, 44)}</td><td style="color:${r.entries?.color || '#fff'}">${escapeHtml(r.entries?.name || '—')}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
+    </tbody></table>
     ${stillRacing.length ? `<div class="still-racing">Still racing: ${stillRacing.map(l => '#' + escapeHtml(l.entries?.car_number || '?') + ' ' + escapeHtml(l.entries?.name || '—')).join(' · ')}</div>` : ''}
   `;
 }

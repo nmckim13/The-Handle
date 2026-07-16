@@ -898,6 +898,7 @@
 <!-- Powers the instant push updates on the Live page (Supabase Realtime); everything else on the site still runs on plain REST calls below. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="/race-night-client.js"></script>
+<script src="/driver-graphics.js"></script>
 <script>
 const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
@@ -1670,42 +1671,10 @@ function backToDrivers() {
   try { history.replaceState(null, '', '#drivers'); } catch(e) {}
 }
 
-const CUSTOM_NUMS = {
-  'Nolan McKim':   { src:'nolan7.png',      w:100, blend:'lighten' },
-  'Eric Peek':     { src:'eric11.png',       w:110, blend:'lighten' },
-  'Goose':         { src:'goose76.png',      w:110, blend:'lighten' }, // still has black bg
-  'Connerz':       { src:'connerz72.png',    w:110, blend:'lighten' },
-  'T Dirt':        { src:'tdirt418.png',     w:120, blend:'lighten' },
-  'Mad Mike':      { src:'madmike28.png',    w:120, blend:'lighten' },
-  'Tonka Tim':     { src:'tonkatim61.png',   w:110, blend:'lighten' },
-  'Miller Lite':   { src:'millerlite13.png', w:110, blend:'lighten' },
-  'Bowen':         { src:'bowen19.png',      w:110, blend:'lighten' },
-  'Zack':          { src:'zack30.png',       w:110, blend:'lighten' },
-  'Tony Miletich': { src:'tony22.png',       w:110, blend:'lighten' },
-  'Biscuit':       { src:'buiscut54.png',    w:110, blend:'lighten' },
-  'East Gary':     { src:'eastgary88.png',   w:120, blend:'lighten' },
-  'Ronnie':        { src:'ronnie09.png',     w:120, blend:'lighten' },
-  'Arthur Walstra':{ src:'arthur3.png',      w:100, blend:'lighten' },
-  'Shawn Toczek':  { src:'shawn65.png',      w:110, blend:'lighten' },
-  'Cole':          { src:'cole96.png',        w:120, blend:'lighten' },
-  'John Nimetz':   { src:'john29.png',        w:110, blend:'lighten' },
-  'Royce':         { src:'royce77.png',       w:120, blend:'lighten' },
-  'Maxzilla':      { src:'maxzilla56.png',    w:120, blend:'lighten' },
-  'Jordan Sculley':{ src:'jordan23.png',      w:120, blend:'lighten' },
-  'Cole V':        { src:'colev25.png',       w:120, blend:'lighten' },
-  'Matthew Deyoung':{ src:'matthew51.png',    w:110, blend:'lighten' },
-};
-
+// Driver number graphics now live in the shared /driver-graphics.js module so the
+// public site, admin console, and big-screen board all render the same thing.
 function getDriverNumEl(name, number, size=48) {
-  const custom = CUSTOM_NUMS[name];
-  const fz = Math.round(size * 0.85);
-
-  if (custom) {
-    const imgFz = Math.round(size * 0.75);
-    return `<img src="${custom.src}" alt="${number}" style="height:${size}px;width:auto;object-fit:contain;mix-blend-mode:${custom.blend};vertical-align:middle;display:inline-block;" onerror="this.outerHTML='<span style=\'font-family:Archivo,sans-serif;font-weight:900;font-size:${imgFz}px;color:#ffffff;line-height:1;vertical-align:middle;\'>${number}</span>'">`;
-  }
-
-  return `<span style="font-family:'Archivo',sans-serif;font-weight:900;font-size:${fz}px;color:#ffffff;line-height:1;vertical-align:middle;">${number}</span>`;
+  return window.DriverGraphics.numHtml(name, number, size);
 }
 
 async function showDriverProfile(id) {
