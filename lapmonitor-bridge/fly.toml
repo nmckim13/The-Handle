@@ -1,0 +1,41 @@
+# Fly.io config for the LapMonitor -> Supabase bridge.
+#
+# This is an always-on worker: it holds a live socket to LapMonitor and must NOT
+# be auto-stopped (auto_stop_machines = false, min_machines_running = 1), so it's
+# ready the instant you hit "Run Race Night". The only inbound HTTP is the small
+# status/health page.
+#
+# NOTE: `app` names are globally unique on Fly — change it if this one is taken.
+
+app = "yardkartz-lapmonitor-bridge"
+primary_region = "ord"   # Chicago — closest Fly region to Indiana
+
+[build]
+
+# Non-secret config. SUPABASE_KEY is set separately as a secret (see README):
+#   fly secrets set SUPABASE_KEY="<anon key>"
+[env]
+  LAPMONITOR_ROOM_ID = "512060739"
+  LAPMONITOR_SERVER  = "https://lapmonitor.live"
+  SUPABASE_URL       = "https://lnsvacnbgmklpkgzbodb.supabase.co"
+  PORT               = "8080"
+  # RACE_ID intentionally unset — the bridge auto-follows whatever race is live.
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false    # keep it running between races
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "get"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1

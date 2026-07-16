@@ -26,6 +26,7 @@
  */
 
 const { io } = require('socket.io-client');
+const http = require('node:http');
 
 // --- Config ---------------------------------------------------------------
 loadDotEnv();
@@ -39,6 +40,7 @@ const RACE_ID_ENV  = env('RACE_ID', '');                // optional; else auto-d
 // How often (ms) to re-read driver→transponder assignments AND check whether a
 // race went live. Lower = faster auto-start when you hit Run Race Night.
 const POLL_MS = Number(env('POLL_MS', env('DRIVER_REFRESH_MS', '15000')));
+const PORT    = Number(env('PORT', '8080')); // status/health endpoint (used by Fly's health check)
 
 for (const [k, v] of Object.entries({ LAPMONITOR_ROOM_ID: ROOM_ID, SUPABASE_KEY })) {
   if (!v) { console.error(`Missing required env ${k}. Copy .env.example to .env and fill it in.`); process.exit(1); }
@@ -50,6 +52,7 @@ let raceId = RACE_ID_ENV || null;
 let raceLive = false;                // is a race currently live (or RACE_ID pinned)?
 let lastSnapshotAt = 0;
 let _lastIdleLog = 0;
+let socketConnected = false;
 
 // --- Supabase REST helpers ------------------------------------------------
 function sb(path, init = {}) {
@@ -212,6 +215,7 @@ function connect() {
   });
 
   socket.on('connect', () => {
+    socketConnected = true;
     console.log(`[socket] connected (${socket.id}); joining room ${ROOM_ID}`);
     socket.emit('joinRoom', ROOM_ID, ack => {
       if (!ack || ack.status !== 200) { console.error('[joinRoom] rejected:', ack && ack.message); return; }
@@ -225,15 +229,38 @@ function connect() {
 
   socket.on('connect_error', e => console.error('[socket] connect_error:', e.message,
     '\n  If this says "server v2.x", pin socket.io-client to v2 (see README).'));
-  socket.on('disconnect', reason => console.warn('[socket] disconnected:', reason));
+  socket.on('disconnect', reason => { socketConnected = false; console.warn('[socket] disconnected:', reason); });
   socket.io.on('reconnect', n => { console.log(`[socket] reconnected (attempt ${n})`); });
 
   return socket;
 }
 
+// Tiny status/health server. Fly's health check hits /health; you can also open
+// https://<your-app>.fly.dev/ from the tablet to confirm the bridge is alive.
+// Exposes nothing sensitive (no keys) — the timing itself is already public.
+function startStatusServer() {
+  http.createServer((req, res) => {
+    if (req.url === '/health' || req.url === '/') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        room: ROOM_ID,
+        lapmonitorConnected: socketConnected,
+        raceLive,
+        raceId,
+        driversWithTransponder: transponderToDriver.size,
+        lastSnapshotSecondsAgo: lastSnapshotAt ? Math.round((Date.now() - lastSnapshotAt) / 1000) : null,
+      }, null, 2));
+    } else {
+      res.writeHead(404); res.end();
+    }
+  }).listen(PORT, '0.0.0.0', () => console.log(`[status] health server on :${PORT}`));
+}
+
 // --- Boot -----------------------------------------------------------------
 (async function main() {
   console.log(`LapMonitor bridge → ${SERVER} room ${ROOM_ID} → ${SUPABASE_URL}`);
+  startStatusServer();
   await refreshDrivers();
   await refreshLiveRace();
   // Re-check driver→transponder assignments and the live race on a loop, so
