@@ -898,6 +898,7 @@
 <!-- Powers the instant push updates on the Live page (Supabase Realtime); everything else on the site still runs on plain REST calls below. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="/race-night-client.js"></script>
+<script src="/driver-graphics.js"></script>
 <script>
 const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
@@ -945,27 +946,72 @@ function restorePage() {
   if(raw === 'live') loadLiveRacing();
 }
 
-// LIVE RACE NIGHT LEADERBOARD
-function renderLiveState(state, race, session, lineup, results){
+// LIVE RACE NIGHT — full board: every heat/B-Main/feature shown with numbered
+// starting grids (before it runs) and finishing order (once it does), so every
+// driver can find their session and see exactly where they start or finished —
+// not just whatever session happens to be on track right now. Driver number
+// graphics come from the shared DriverGraphics module (same as the big screen).
+const RN_STAGE_ORDER = { heat: 0, b_main: 1, feature: 2 };
+function rnSessionHeading(s){
+  if(s.session_type === 'heat') return 'Heat ' + s.session_number;
+  return s.session_type === 'b_main' ? 'B-Main' : 'Feature';
+}
+function rnNumCell(entry, size){ return window.DriverGraphics.numHtml(entry && entry.name, entry && entry.car_number, size || 26); }
+function renderSessionBoardCard(s, lineup, results, isCurrent){
+  const finishedIds = new Set(results.map(r => r.entry_id));
+  const stillOut = lineup.filter(l => !finishedIds.has(l.entry_id));
+  const done = s.status === 'completed';
+  const live = !done && (s.status === 'in_progress' || results.length > 0);
+  const badge = live ? '<span style="color:var(--red)">&#9679; LIVE</span>'
+    : done ? '<span style="color:var(--green)">&#10003; Final</span>'
+    : isCurrent ? '<span style="color:var(--yellow)">On Deck</span>'
+    : '<span style="color:var(--text2)">Up Next</span>';
+  const nameCell = e => `<span style="display:inline-flex;align-items:center;gap:8px">${rnNumCell(e, 26)}<span style="color:${e?.color||'var(--white)'}">${escapeHtml(e?.name||'—')}</span></span>`;
+  let rowsHtml, headCol;
+  if(results.length){
+    headCol = 'Pos';
+    const fin = results.slice().sort((a,b)=>a.finishing_position-b.finishing_position);
+    rowsHtml = fin.map(r=>`<tr><td>${r.finishing_position}</td><td>${nameCell(r.entries)}</td><td>${r.best_lap_seconds!=null?Number(r.best_lap_seconds).toFixed(3)+'s':''}</td></tr>`).join('')
+      + stillOut.map(l=>`<tr style="opacity:.55"><td>—</td><td>${nameCell(l.entries)}</td><td>out</td></tr>`).join('');
+  } else {
+    headCol = 'Start';
+    rowsHtml = lineup.map(l=>`<tr><td>${l.starting_position}</td><td>${nameCell(l.entries)}</td><td></td></tr>`).join('');
+  }
+  return `<div class="info-card" style="${live?'border-color:var(--red);':''}margin-bottom:12px">
+    <h3 style="display:flex;justify-content:space-between;align-items:center;color:var(--white)">${rnSessionHeading(s)} <span style="font-size:12px">${badge}</span></h3>
+    <div class="tbl-wrap" style="margin-bottom:0"><table class="tbl"><thead><tr><th style="width:56px">${headCol}</th><th>Driver</th><th style="width:88px">Best Lap</th></tr></thead><tbody>${rowsHtml || '<tr><td colspan="3" style="color:var(--text2)">Lineup coming up…</td></tr>'}</tbody></table></div>
+  </div>`;
+}
+// The admin sets live_state.session_id to the first heat at seed time and only
+// moves it again at B-Main/feature setup, so during heat racing it's a poor
+// signal for "what's on track right now". Derive the active session from real
+// session state instead: whatever's in progress, else the one being scored,
+// else the next one still to run.
+function rnActiveSession(sessions, resultsBy){
+  const hasRes = s => (resultsBy[s.id] || []).length > 0;
+  return sessions.find(s => s.status === 'in_progress')
+    || sessions.find(s => hasRes(s) && s.status !== 'completed')
+    || sessions.find(s => s.status !== 'completed')
+    || sessions[sessions.length - 1] || null;
+}
+function renderLiveState(state, race, sessions, lineupsBy, resultsBy){
+  const active = rnActiveSession(sessions, resultsBy);
   const stageLabel = STAGE_LABEL[state.current_stage] || state.current_stage;
-  const stageSessionLabel = sessionLabel(session);
-  const finishedIds = new Set(results.map(r=>r.entry_id));
-  const stillRacing = lineup.filter(l=>!finishedIds.has(l.entry_id));
-  const flag = session && session.flag_state !== 'green' ? FLAG_LABEL[session.flag_state] : null;
-  const lapLine = session && session.laps_scheduled ? `<p style="font-size:15px;font-weight:800;margin-top:4px">Lap ${session.current_lap || 0} / ${session.laps_scheduled}</p>` : '';
-
-  return `
+  const sessionSuffix = active && active.session_type === 'heat' ? ' — Heat ' + active.session_number : '';
+  const flag = active && active.flag_state && active.flag_state !== 'green' ? FLAG_LABEL[active.flag_state] : null;
+  const lapLine = active && active.laps_scheduled ? `<p style="font-size:15px;font-weight:800;margin-top:4px">Lap ${active.current_lap || 0} / ${active.laps_scheduled}</p>` : '';
+  const header = `
     ${flag ? `<div class="info-card" style="background:${flag.bg};color:${flag.fg};border-color:${flag.bg};text-align:center"><h3 style="color:${flag.fg}">${flag.emoji} ${flag.label}</h3></div>` : ''}
     <div class="info-card" style="border-color:var(--red)">
-      <h3>&#9679; LIVE — ${stageLabel}${stageSessionLabel ? ' — '+stageSessionLabel : ''}</h3>
-      <p>${race ? ('R'+race.round+' — '+race.name) : ''}</p>
+      <h3>&#9679; LIVE — ${stageLabel}${sessionSuffix}</h3>
+      <p>${race ? ('R'+race.round+' — '+escapeHtml(race.name)) : ''}</p>
       ${lapLine}
-    </div>
-    ${results.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:50px">Pos</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
-      ${results.map(r=>`<tr><td>${r.finishing_position}</td><td>#${escapeHtml(r.entries?.car_number||'?')} ${escapeHtml(r.entries?.name||'—')}</td><td>${r.best_lap_seconds!=null?Number(r.best_lap_seconds).toFixed(3)+'s':'—'}</td></tr>`).join('')}
-    </tbody></table></div>` : ''}
-    ${stillRacing.length ? `<div class="info-card"><h3>Still Racing</h3><p>${stillRacing.map(l=>'#'+escapeHtml(l.entries?.car_number||'?')+' '+escapeHtml(l.entries?.name||'—')).join(' · ')}</p></div>` : ''}
-  `;
+    </div>`;
+  if(!sessions.length){
+    return header + `<div class="info-card"><p>Line-ups drop the moment the grids are set — this page updates on its own, so keep it open.</p></div>`;
+  }
+  const board = sessions.map(s => renderSessionBoardCard(s, lineupsBy[s.id]||[], resultsBy[s.id]||[], !!active && s.id===active.id)).join('');
+  return header + `<div class="sect-lbl" style="margin:6px 0 12px">Line-Ups &amp; Results — find your kart</div>` + board;
 }
 async function loadLiveRacing(){
   const wrap = document.getElementById('live-leaderboard');
@@ -977,17 +1023,20 @@ async function loadLiveRacing(){
   }
   const races = await get('races', `select=*&id=eq.${state.race_id}`);
   const race = races[0];
-  let session = null, lineup = [], results = [];
-  if(state.session_id){
-    const sessions = await get('race_sessions', `select=*&id=eq.${state.session_id}`);
-    session = sessions[0];
-    const [lu, res] = await Promise.all([
-      get('lineups', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=starting_position.asc`),
-      get('session_results', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=finishing_position.asc`)
+  const sessionsRaw = await get('race_sessions', `select=*&race_id=eq.${state.race_id}`);
+  const sessions = sessionsRaw.slice().sort((a,b)=>(RN_STAGE_ORDER[a.session_type]-RN_STAGE_ORDER[b.session_type])||(a.session_number-b.session_number));
+  const lineupsBy = {}, resultsBy = {};
+  sessions.forEach(s=>{ lineupsBy[s.id]=[]; resultsBy[s.id]=[]; });
+  if(sessions.length){
+    const ids = sessions.map(s=>s.id).join(',');
+    const [lus, res] = await Promise.all([
+      get('lineups', `select=*,entries(name,car_number,color)&session_id=in.(${ids})&order=starting_position.asc`),
+      get('session_results', `select=*,entries(name,car_number,color)&session_id=in.(${ids})&order=finishing_position.asc`)
     ]);
-    lineup = lu; results = res;
+    lus.forEach(l => lineupsBy[l.session_id] && lineupsBy[l.session_id].push(l));
+    res.forEach(r => resultsBy[r.session_id] && resultsBy[r.session_id].push(r));
   }
-  wrap.innerHTML = renderLiveState(state, race, session, lineup, results);
+  wrap.innerHTML = renderLiveState(state, race, sessions, lineupsBy, resultsBy);
 }
 // Push updates via Supabase Realtime for near-instant refresh; a slow poll
 // stays on underneath as a safety net in case the websocket drops.
@@ -1670,42 +1719,10 @@ function backToDrivers() {
   try { history.replaceState(null, '', '#drivers'); } catch(e) {}
 }
 
-const CUSTOM_NUMS = {
-  'Nolan McKim':   { src:'nolan7.png',      w:100, blend:'lighten' },
-  'Eric Peek':     { src:'eric11.png',       w:110, blend:'lighten' },
-  'Goose':         { src:'goose76.png',      w:110, blend:'lighten' }, // still has black bg
-  'Connerz':       { src:'connerz72.png',    w:110, blend:'lighten' },
-  'T Dirt':        { src:'tdirt418.png',     w:120, blend:'lighten' },
-  'Mad Mike':      { src:'madmike28.png',    w:120, blend:'lighten' },
-  'Tonka Tim':     { src:'tonkatim61.png',   w:110, blend:'lighten' },
-  'Miller Lite':   { src:'millerlite13.png', w:110, blend:'lighten' },
-  'Bowen':         { src:'bowen19.png',      w:110, blend:'lighten' },
-  'Zack':          { src:'zack30.png',       w:110, blend:'lighten' },
-  'Tony Miletich': { src:'tony22.png',       w:110, blend:'lighten' },
-  'Biscuit':       { src:'buiscut54.png',    w:110, blend:'lighten' },
-  'East Gary':     { src:'eastgary88.png',   w:120, blend:'lighten' },
-  'Ronnie':        { src:'ronnie09.png',     w:120, blend:'lighten' },
-  'Arthur Walstra':{ src:'arthur3.png',      w:100, blend:'lighten' },
-  'Shawn Toczek':  { src:'shawn65.png',      w:110, blend:'lighten' },
-  'Cole':          { src:'cole96.png',        w:120, blend:'lighten' },
-  'John Nimetz':   { src:'john29.png',        w:110, blend:'lighten' },
-  'Royce':         { src:'royce77.png',       w:120, blend:'lighten' },
-  'Maxzilla':      { src:'maxzilla56.png',    w:120, blend:'lighten' },
-  'Jordan Sculley':{ src:'jordan23.png',      w:120, blend:'lighten' },
-  'Cole V':        { src:'colev25.png',       w:120, blend:'lighten' },
-  'Matthew Deyoung':{ src:'matthew51.png',    w:110, blend:'lighten' },
-};
-
+// Driver number graphics now live in the shared /driver-graphics.js module so the
+// public site, admin console, and big-screen board all render the same thing.
 function getDriverNumEl(name, number, size=48) {
-  const custom = CUSTOM_NUMS[name];
-  const fz = Math.round(size * 0.85);
-
-  if (custom) {
-    const imgFz = Math.round(size * 0.75);
-    return `<img src="${custom.src}" alt="${number}" style="height:${size}px;width:auto;object-fit:contain;mix-blend-mode:${custom.blend};vertical-align:middle;display:inline-block;" onerror="this.outerHTML='<span style=\'font-family:Archivo,sans-serif;font-weight:900;font-size:${imgFz}px;color:#ffffff;line-height:1;vertical-align:middle;\'>${number}</span>'">`;
-  }
-
-  return `<span style="font-family:'Archivo',sans-serif;font-weight:900;font-size:${fz}px;color:#ffffff;line-height:1;vertical-align:middle;">${number}</span>`;
+  return window.DriverGraphics.numHtml(name, number, size);
 }
 
 async function showDriverProfile(id) {

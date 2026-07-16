@@ -42,8 +42,38 @@
   table.board-tbl td { font-size: 28px; font-weight: 800; padding: 12px 24px; border-bottom: 1px solid var(--line); }
   table.board-tbl tr:last-child td { border-bottom: none; }
   table.board-tbl td.pos { color: var(--yellow); width: 70px; }
+  table.board-tbl td.num { width: 92px; padding-right: 4px; }
+  table.board-tbl td.num img.dg-num-img { height: 46px; }
   .still-racing { font-size: 18px; font-weight: 700; color: var(--text2); padding: 16px 24px; }
   .empty-state { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 26px; font-weight: 800; color: var(--text2); text-align: center; padding: 40px; }
+
+  /* Starting-grid — what a driver sees when the heat lineup drops. */
+  .grid-head { font-size: 15px; text-transform: uppercase; letter-spacing: 2px; color: var(--yellow); font-weight: 900; padding: 12px 24px 6px; }
+  .grid-list { display: flex; flex-direction: column; }
+  .grid-row { display: grid; grid-template-columns: 58px 96px 1fr; align-items: center; gap: 14px; padding: 9px 24px; border-bottom: 1px solid var(--line); }
+  .grid-row:last-child { border-bottom: none; }
+  .grid-row .gr-pos { font-size: 30px; font-weight: 900; color: var(--yellow); text-align: center; }
+  .grid-row .gr-num { display: flex; align-items: center; justify-content: center; }
+  .grid-row .gr-num img.dg-num-img { height: 52px; }
+  .grid-row .gr-name { font-size: 27px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* All-heats board — every heat on screen at once during heat racing, so each
+     driver can find their heat and get ready; results fill in live. */
+  .heats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; padding: 12px; align-content: start; }
+  .heat-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .heat-card.live { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
+  .heat-card-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .heat-card-title { font-size: 22px; font-weight: 900; }
+  .heat-card-badge { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+  .heat-card-sub { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); padding: 7px 16px 3px; }
+  .hc-row { display: grid; grid-template-columns: 34px 52px 1fr auto; align-items: center; gap: 10px; padding: 6px 16px; border-bottom: 1px solid var(--line); }
+  .hc-row:last-child { border-bottom: none; }
+  .hc-row.out { opacity: 0.5; }
+  .hc-pos { font-size: 21px; font-weight: 900; color: var(--yellow); text-align: center; }
+  .hc-num { display: flex; align-items: center; justify-content: center; }
+  .hc-num img.dg-num-img { height: 34px; width: auto; }
+  .hc-name { font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hc-lap { font-size: 14px; font-weight: 700; color: var(--text2); }
 
   .timing-pane { position: relative; background: var(--panel-2); }
   .timing-label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--text2); background: rgba(10,10,10,0.75); padding: 5px 14px; border-radius: 999px; z-index: 2; }
@@ -93,6 +123,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="/race-night-client.js"></script>
+<script src="/driver-graphics.js"></script>
 <script>
 const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
@@ -145,6 +176,28 @@ async function renderLiveTiming(raceId){
     </table>`;
 }
 
+// One heat's card for the all-heats board: numbered starting grid, flipping to
+// finishing order (with the yet-to-finish karts greyed) as results come in.
+function heatCardHtml(s, lineup, results){
+  const numG = (e, size) => window.DriverGraphics.numHtml(e && e.name, e && e.car_number, size);
+  const done = s.status === 'completed';
+  const live = s.status === 'in_progress' || (results.length > 0 && !done);
+  const badge = done ? '<span style="color:var(--green)">✓ FINAL</span>'
+    : live ? '<span style="color:var(--red)">● LIVE</span>'
+    : '<span style="color:var(--text2)">UP NEXT</span>';
+  const finishedIds = new Set(results.map(r => r.entry_id));
+  const stillOut = lineup.filter(l => !finishedIds.has(l.entry_id));
+  const finRows = results.slice().sort((a, b) => a.finishing_position - b.finishing_position).map(r =>
+    `<div class="hc-row"><div class="hc-pos">${r.finishing_position}</div><div class="hc-num">${numG(r.entries, 34)}</div><div class="hc-name" style="color:${r.entries?.color || '#fff'}">${escapeHtml(r.entries?.name || '—')}</div><div class="hc-lap">${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : ''}</div></div>`).join('');
+  const outRows = stillOut.map(l =>
+    `<div class="hc-row${results.length ? ' out' : ''}"><div class="hc-pos">${results.length ? '—' : l.starting_position}</div><div class="hc-num">${numG(l.entries, 34)}</div><div class="hc-name" style="color:${l.entries?.color || '#fff'}">${escapeHtml(l.entries?.name || '—')}</div><div class="hc-lap"></div></div>`).join('');
+  return `<div class="heat-card${live ? ' live' : ''}">
+    <div class="heat-card-head"><div class="heat-card-title">Heat ${s.session_number}</div><div class="heat-card-badge">${badge}</div></div>
+    <div class="heat-card-sub">${results.length ? 'Finish' : 'Start'} · ${lineup.length} karts</div>
+    ${finRows}${outRows || (finRows ? '' : '<div class="hc-row"><div></div><div></div><div class="hc-name" style="color:var(--text2)">Lineup coming up…</div><div></div></div>')}
+  </div>`;
+}
+
 async function refresh(){
   const stageCard = document.getElementById('stage-card');
   const titleEl = document.getElementById('stage-title-text');
@@ -167,16 +220,37 @@ async function refresh(){
 
   const races = await get('races', `select=*&id=eq.${state.race_id}`);
   const race = races[0];
-  let session = null, lineup = [], results = [];
-  if(state.session_id){
-    const sessions = await get('race_sessions', `select=*&id=eq.${state.session_id}`);
-    session = sessions[0];
-    const [lu, res] = await Promise.all([
-      get('lineups', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=starting_position.asc`),
-      get('session_results', `select=*,entries(name,car_number,color)&session_id=eq.${state.session_id}&order=finishing_position.asc`)
+  // Fetch every session for the race and follow the one that's actually active
+  // (in progress, else being scored, else next up). live_state.session_id sticks
+  // on the first heat all through heat racing, so it can't be trusted to point at
+  // what's on track — this lets the kiosk advance heat to heat on its own as the
+  // manager scores each one.
+  const STAGE_ORDER = { heat: 0, b_main: 1, feature: 2 };
+  const allSessions = (await get('race_sessions', `select=*&race_id=eq.${state.race_id}`))
+    .sort((a, b) => (STAGE_ORDER[a.session_type] - STAGE_ORDER[b.session_type]) || (a.session_number - b.session_number));
+  // Pull every session's lineup + results in one shot so the board can show all
+  // heats at once (and so results appear the instant they're entered).
+  const lineupsBy = {}, resultsBy = {};
+  allSessions.forEach(s => { lineupsBy[s.id] = []; resultsBy[s.id] = []; });
+  if(allSessions.length){
+    const ids = allSessions.map(s => s.id).join(',');
+    const [lus, res] = await Promise.all([
+      get('lineups', `select=*,entries(name,car_number,color)&session_id=in.(${ids})&order=starting_position.asc`),
+      get('session_results', `select=*,entries(name,car_number,color)&session_id=in.(${ids})&order=finishing_position.asc`)
     ]);
-    lineup = lu; results = res;
+    lus.forEach(l => lineupsBy[l.session_id] && lineupsBy[l.session_id].push(l));
+    res.forEach(r => resultsBy[r.session_id] && resultsBy[r.session_id].push(r));
   }
+  // The active session drives the header/flag/lap. live_state.session_id sticks
+  // on the first heat all through heat racing, so derive it from real state:
+  // in progress, else being scored, else next up.
+  const hasRes = s => (resultsBy[s.id] || []).length > 0;
+  const session = allSessions.find(s => s.status === 'in_progress')
+    || allSessions.find(s => hasRes(s) && s.status !== 'completed')
+    || allSessions.find(s => s.status !== 'completed')
+    || allSessions[allSessions.length - 1] || null;
+  const lineup = session ? (lineupsBy[session.id] || []) : [];
+  const results = session ? (resultsBy[session.id] || []) : [];
 
   const stageLabel = STAGE_LABEL[state.current_stage] || state.current_stage;
   const stageSessionLabel = sessionLabel(session);
@@ -193,6 +267,24 @@ async function refresh(){
     flagEl.className = 'flag-banner';
   }
 
+  const numG = (e, size) => window.DriverGraphics.numHtml(e?.name, e?.car_number, size);
+
+  if(!allSessions.length){
+    boardWrap.innerHTML = '<div class="empty-state">Lineup coming up…</div>';
+    return;
+  }
+
+  // HEAT STAGE — show every heat on screen at once so each driver can find their
+  // heat and get ready. Results fill in live as the manager scores each one.
+  const heats = allSessions.filter(s => s.session_type === 'heat');
+  if(session && session.session_type === 'heat' && heats.length){
+    boardWrap.innerHTML = `<div class="heats-grid">
+      ${heats.map(h => heatCardHtml(h, lineupsBy[h.id] || [], resultsBy[h.id] || [])).join('')}
+    </div>`;
+    return;
+  }
+
+  // B-MAIN / FEATURE — the main event gets the full-width spotlight.
   const finishedIds = new Set(results.map(r => r.entry_id));
   const stillRacing = lineup.filter(l => !finishedIds.has(l.entry_id));
 
@@ -200,10 +292,26 @@ async function refresh(){
     boardWrap.innerHTML = '<div class="empty-state">Lineup coming up…</div>';
     return;
   }
+
+  // Before anyone has finished, the board IS the starting grid — each driver sees
+  // exactly where they line up, with their own number graphic next to them.
+  if(!results.length){
+    boardWrap.innerHTML = `
+      <div class="grid-head">Starting Lineup${stageSessionLabel ? ' — ' + escapeHtml(stageSessionLabel) : ''}</div>
+      <div class="grid-list">
+        ${lineup.map(l => `<div class="grid-row">
+          <div class="gr-pos">${l.starting_position}</div>
+          <div class="gr-num">${numG(l.entries, 52)}</div>
+          <div class="gr-name" style="color:${l.entries?.color || '#fff'}">${escapeHtml(l.entries?.name || '—')}</div>
+        </div>`).join('')}
+      </div>`;
+    return;
+  }
+
   boardWrap.innerHTML = `
-    ${results.length ? `<table class="board-tbl"><thead><tr><th>Pos</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
-      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td style="color:${r.entries?.color || '#fff'}">#${escapeHtml(r.entries?.car_number || '?')} ${escapeHtml(r.entries?.name || '—')}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
-    </tbody></table>` : ''}
+    <table class="board-tbl"><thead><tr><th>Pos</th><th>No.</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
+      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td class="num">${numG(r.entries, 44)}</td><td style="color:${r.entries?.color || '#fff'}">${escapeHtml(r.entries?.name || '—')}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
+    </tbody></table>
     ${stillRacing.length ? `<div class="still-racing">Still racing: ${stillRacing.map(l => '#' + escapeHtml(l.entries?.car_number || '?') + ' ' + escapeHtml(l.entries?.name || '—')).join(' · ')}</div>` : ''}
   `;
 }
