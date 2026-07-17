@@ -177,7 +177,10 @@
     <div class="card">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <span>Tonight's Race</span>
-        <button class="btn btn-outline" onclick="openBroadcastView()">📺 Broadcast View</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline" onclick="openBroadcastView()">📺 Broadcast View</button>
+          <button class="btn btn-danger" onclick="rnResetRace(this)">🔄 Reset This Race</button>
+        </div>
       </div>
       <div class="form-grid full">
         <div class="form-group">
@@ -1995,6 +1998,45 @@
   }
   function openBroadcastView() {
     window.open('../big-screen.html', 'yardkartz-broadcast', 'width=1600,height=900,menubar=no,toolbar=no,location=no,status=no');
+  }
+  async function rnResetRace(btn) {
+    if (!RN.raceId) { toast('Select a race first', true); return; }
+    await rnGuarded(btn, async () => {
+      const race = (await db.get('races', `id=eq.${RN.raceId}&select=*`))[0];
+      const label = race ? `R${race.round} — ${race.name}` : 'this race';
+      const typed = prompt(`Reset "${label}"?\n\nThis wipes ALL sign-ups, check-ins, heats/B-Main/feature sessions, and any posted official results for THIS race, so you can run it again from scratch. Driver season stats credited by this race are un-credited. Other races are untouched.\n\nThis cannot be undone. Type RESET to confirm:`);
+      if (typed !== 'RESET') { if (typed !== null) toast('Reset cancelled', true); return; }
+
+      // Undo any official results already posted for this race (mirrors the
+      // re-posting logic in rnPostOfficial) before wiping the rows, so a
+      // driver's cumulative starts/wins aren't left inflated by a race that
+      // no longer exists.
+      const officialResults = await db.get('results', `race_id=eq.${RN.raceId}&select=*`);
+      if (officialResults.length) {
+        const driversList = await db.get('drivers', 'select=*');
+        for (const old of officialResults) {
+          const driver = driversList.find(d => d.id === old.driver_id);
+          if (!driver) continue;
+          const wasWin = old.position === 1;
+          await db.patch('drivers', `id=eq.${driver.id}`, { starts: driver.starts - 1, wins: driver.wins - (wasWin ? 1 : 0) });
+          driver.starts -= 1;
+          if (wasWin) driver.wins -= 1;
+        }
+      }
+
+      await db.delWhere('results', `race_id=eq.${RN.raceId}`);
+      await db.delWhere('race_sessions', `race_id=eq.${RN.raceId}`); // cascades to lineups + session_results
+      await db.delWhere('entries', `race_id=eq.${RN.raceId}`);
+
+      const liveRows = await db.get('live_state', `race_id=eq.${RN.raceId}`);
+      if (liveRows[0]) await db.patch('live_state', `id=eq.${liveRows[0].id}`, { is_live: false, current_stage: 'check_in', session_id: null, message: null });
+
+      localStorage.removeItem(`rn_qual_${RN.raceId}`);
+      localStorage.removeItem(`rn_qgroups_${RN.raceId}`);
+
+      toast('Race reset — ready to run again');
+      rnRenderAll();
+    });
   }
 
   async function loadOverview() {
