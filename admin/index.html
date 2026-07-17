@@ -1310,7 +1310,11 @@
     if (!RN.raceId) return;
     try {
       const rows = await db.get('live_state', `race_id=eq.${RN.raceId}`);
-      if (rows[0]) await db.patch('live_state', `id=eq.${rows[0].id}`, { qual_groups: g });
+      // Always forces is_live true too — drawing groups is real race-night
+      // activity, so the broadcast should come on even if "Run Race Night"
+      // was skipped (e.g. jumping straight to the Race Night tab and
+      // picking the race from the dropdown never flips live_state itself).
+      if (rows[0]) await db.patch('live_state', `id=eq.${rows[0].id}`, { is_live: true, qual_groups: g });
       else await db.post('live_state', { race_id: RN.raceId, is_live: true, current_stage: 'check_in', qual_groups: g });
     } catch (e) { /* qual_groups column may not exist yet (migration 008 pending) — local-only fallback */ }
   }
