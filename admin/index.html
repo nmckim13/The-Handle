@@ -1302,9 +1302,23 @@
   function rnQGroupsKey() { return `rn_qgroups_${RN.raceId}`; }
   function rnLoadQGroups() { try { return JSON.parse(localStorage.getItem(rnQGroupsKey())) || { count: 1, byEntry: {} }; } catch (e) { return { count: 1, byEntry: {} }; } }
   function rnSaveQGroups(g) { localStorage.setItem(rnQGroupsKey(), JSON.stringify(g)); }
+  // Mirrors the group draw onto live_state so a separate broadcast device
+  // (big-screen.html) can show the same groups — the times stay local-only
+  // (only needed to seed heats on this device), but the group split itself
+  // is what tonight's drivers need to see on screen.
+  async function rnSyncQualGroupsLive(g) {
+    if (!RN.raceId) return;
+    try {
+      const rows = await db.get('live_state', `race_id=eq.${RN.raceId}`);
+      if (rows[0]) await db.patch('live_state', `id=eq.${rows[0].id}`, { qual_groups: g });
+      else await db.post('live_state', { race_id: RN.raceId, is_live: true, current_stage: 'check_in', qual_groups: g });
+    } catch (e) { /* qual_groups column may not exist yet (migration 008 pending) — local-only fallback */ }
+  }
   function rnSetQGroupCount(v) {
     const n = Math.max(1, Math.min(4, parseInt(v) || 1));
-    rnSaveQGroups({ count: n, byEntry: {} }); // changing the count invalidates old assignments
+    const g = { count: n, byEntry: {} }; // changing the count invalidates old assignments
+    rnSaveQGroups(g);
+    rnSyncQualGroupsLive(g);
     rnRenderAll();
   }
   function rnDrawQualGroups() {
@@ -1314,7 +1328,9 @@
     for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
     const byEntry = {};
     shuffled.forEach((id, i) => { byEntry[id] = i % count; }); // round-robin -> balanced, random groups
-    rnSaveQGroups({ count, byEntry });
+    const g = { count, byEntry };
+    rnSaveQGroups(g);
+    rnSyncQualGroupsLive(g);
     rnRenderAll();
   }
 
@@ -1994,7 +2010,21 @@
   }
   function goRaceNight(raceId) {
     goTab('racenight');
-    if (raceId) { RN.raceId = raceId; const sel = document.getElementById('rn-race-select'); if (sel) sel.value = raceId; rnRenderAll(); }
+    if (raceId) {
+      RN.raceId = raceId;
+      const sel = document.getElementById('rn-race-select');
+      if (sel) sel.value = raceId;
+      rnGoLiveOnBroadcast(raceId);
+      rnRenderAll();
+    }
+  }
+  // Marks the race live on the broadcast the moment "Run Race Night" is
+  // clicked, so the big screen shows the checked-in roster right away —
+  // without downgrading current_stage/session_id if racing already started.
+  async function rnGoLiveOnBroadcast(raceId) {
+    const rows = await db.get('live_state', `race_id=eq.${raceId}`);
+    if (rows[0]) { if (!rows[0].is_live) await db.patch('live_state', `id=eq.${rows[0].id}`, { is_live: true }); }
+    else await db.post('live_state', { race_id: raceId, is_live: true, current_stage: 'check_in' });
   }
   function openBroadcastView() {
     window.open('../big-screen.html', 'yardkartz-broadcast', 'width=1600,height=900,menubar=no,toolbar=no,location=no,status=no');
@@ -2028,8 +2058,17 @@
       await db.delWhere('race_sessions', `race_id=eq.${RN.raceId}`); // cascades to lineups + session_results
       // entries (sign-ups/check-ins) are intentionally left alone
 
+      // Leaves is_live untouched (race night is still on the air, just
+      // backing up to qualifying) — only the stage/session/groups reset.
       const liveRows = await db.get('live_state', `race_id=eq.${RN.raceId}`);
-      if (liveRows[0]) await db.patch('live_state', `id=eq.${liveRows[0].id}`, { is_live: false, current_stage: 'check_in', session_id: null, message: null });
+      if (liveRows[0]) {
+        try {
+          await db.patch('live_state', `id=eq.${liveRows[0].id}`, { current_stage: 'check_in', session_id: null, message: null, qual_groups: null });
+        } catch (e) {
+          // qual_groups column may not exist yet (migration 008 pending)
+          await db.patch('live_state', `id=eq.${liveRows[0].id}`, { current_stage: 'check_in', session_id: null, message: null });
+        }
+      }
 
       localStorage.removeItem(`rn_qual_${RN.raceId}`);
       localStorage.removeItem(`rn_qgroups_${RN.raceId}`);

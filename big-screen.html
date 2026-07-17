@@ -176,6 +176,50 @@ async function renderLiveTiming(raceId){
     </table>`;
 }
 
+// PRE-HEAT BOARD — before heats exist, the checked-in roster IS the board, so
+// drivers know they're on the list; once the admin draws qualifying groups
+// (synced onto live_state.qual_groups) it switches to a group-by-group view.
+// Lap times stay admin-device-only (only needed to seed heats there); this
+// only mirrors the group split itself.
+function qualifyingBoardHtml(entries, qg){
+  const numG = (e, size) => window.DriverGraphics.numHtml(e && e.name, e && e.car_number, size);
+  const groupCount = qg && qg.count ? Math.max(1, Math.min(4, qg.count)) : 1;
+  const drawn = !!(qg && qg.byEntry && Object.keys(qg.byEntry).length > 0);
+  if(!drawn || groupCount <= 1){
+    return `<div class="grid-head">Checked In — ${entries.length} Kart${entries.length !== 1 ? 's' : ''}</div>
+      <div class="grid-list">
+        ${entries.map((e, i) => `<div class="grid-row">
+          <div class="gr-pos">${i + 1}</div>
+          <div class="gr-num">${numG(e, 52)}</div>
+          <div class="gr-name" style="color:${e.color || '#fff'}">${escapeHtml(e.name)}</div>
+        </div>`).join('')}
+      </div>`;
+  }
+  const letter = i => String.fromCharCode(65 + i);
+  const buckets = Array.from({ length: groupCount }, () => []);
+  const unassigned = [];
+  entries.forEach(e => { const gi = qg.byEntry[e.id]; if(gi == null || gi >= groupCount) unassigned.push(e); else buckets[gi].push(e); });
+  const cardHtml = (title, list) => `<div class="heat-card">
+      <div class="heat-card-head"><div class="heat-card-title">${title}</div><div class="heat-card-badge" style="color:var(--text2)">${list.length} KART${list.length !== 1 ? 'S' : ''}</div></div>
+      ${list.map(e => `<div class="hc-row"><div class="hc-pos">#${escapeHtml(e.car_number)}</div><div class="hc-num">${numG(e, 34)}</div><div class="hc-name" style="color:${e.color || '#fff'}">${escapeHtml(e.name)}</div><div class="hc-lap"></div></div>`).join('') || '<div class="hc-row"><div></div><div></div><div class="hc-name" style="color:var(--text2)">empty</div><div></div></div>'}
+    </div>`;
+  return `<div class="heats-grid">
+    ${buckets.map((b, i) => cardHtml('Group ' + letter(i), b)).join('')}
+    ${unassigned.length ? cardHtml('Unassigned', unassigned) : ''}
+  </div>`;
+}
+
+// Sorts by car number numerically where possible (mirrors the admin's
+// rnByCarNumber) so "10" doesn't sort before "2".
+function byCarNumber(a, b){
+  const na = parseInt(a.car_number, 10), nb = parseInt(b.car_number, 10);
+  const aNum = !isNaN(na), bNum = !isNaN(nb);
+  if(aNum && bNum && na !== nb) return na - nb;
+  if(aNum && !bNum) return -1;
+  if(!aNum && bNum) return 1;
+  return String(a.car_number).localeCompare(String(b.car_number));
+}
+
 // One heat's card for the all-heats board: numbered starting grid, flipping to
 // finishing order (with the yet-to-finish karts greyed) as results come in.
 function heatCardHtml(s, lineup, results){
@@ -252,7 +296,8 @@ async function refresh(){
   const lineup = session ? (lineupsBy[session.id] || []) : [];
   const results = session ? (resultsBy[session.id] || []) : [];
 
-  const stageLabel = STAGE_LABEL[state.current_stage] || state.current_stage;
+  const qualDrawn = !!(state.qual_groups && state.qual_groups.byEntry && Object.keys(state.qual_groups.byEntry).length > 0);
+  const stageLabel = (!allSessions.length && qualDrawn) ? 'Qualifying' : (STAGE_LABEL[state.current_stage] || state.current_stage);
   const stageSessionLabel = sessionLabel(session);
   titleEl.textContent = `LIVE — ${stageLabel}${stageSessionLabel ? ' — ' + stageSessionLabel : ''}`;
   metaEl.textContent = race ? `R${race.round} — ${race.name}` : '';
@@ -270,7 +315,10 @@ async function refresh(){
   const numG = (e, size) => window.DriverGraphics.numHtml(e?.name, e?.car_number, size);
 
   if(!allSessions.length){
-    boardWrap.innerHTML = '<div class="empty-state">Lineup coming up…</div>';
+    const entries = (await get('entries', `select=*&race_id=eq.${state.race_id}&status=eq.checked_in`)).sort(byCarNumber);
+    boardWrap.innerHTML = entries.length
+      ? qualifyingBoardHtml(entries, state.qual_groups)
+      : '<div class="empty-state">Waiting for drivers to check in…</div>';
     return;
   }
 
@@ -326,6 +374,7 @@ function ensureRealtime(){
     .on('postgres_changes', { event: '*', schema: 'public', table: 'live_state' }, debouncedRefresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'session_results' }, debouncedRefresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'race_sessions' }, debouncedRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, debouncedRefresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'live_timing' }, debouncedTiming)
     .subscribe();
 }
