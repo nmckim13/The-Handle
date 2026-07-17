@@ -175,7 +175,10 @@
   <!-- RACE NIGHT -->
   <div class="admin-page" id="ap-racenight">
     <div class="card">
-      <div class="card-title">Tonight's Race</div>
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <span>Tonight's Race</span>
+        <button class="btn btn-outline" onclick="openBroadcastView()">📺 Broadcast View</button>
+      </div>
       <div class="form-grid full">
         <div class="form-group">
           <label>Select Race</label>
@@ -1990,6 +1993,9 @@
     goTab('racenight');
     if (raceId) { RN.raceId = raceId; const sel = document.getElementById('rn-race-select'); if (sel) sel.value = raceId; rnRenderAll(); }
   }
+  function openBroadcastView() {
+    window.open('../big-screen.html', 'yardkartz-broadcast', 'width=1600,height=900,menubar=no,toolbar=no,location=no,status=no');
+  }
 
   async function loadOverview() {
     const root = document.getElementById('overview-root');
@@ -2029,6 +2035,7 @@
         <div class="ov-hero-actions">
           <button class="btn btn-primary" onclick="goRaceNight('${next.id}')">🏁 Run Race Night</button>
           <button class="btn btn-outline" onclick="goRaceNight('${next.id}')">View Sign-Ups</button>
+          <button class="btn btn-outline" onclick="openBroadcastView()">📺 Broadcast View</button>
         </div>
       </div>`;
     } else {
