@@ -179,7 +179,7 @@
         <span>Tonight's Race</span>
         <div style="display:flex;gap:8px">
           <button class="btn btn-outline" onclick="openBroadcastView()">📺 Broadcast View</button>
-          <button class="btn btn-danger" onclick="rnResetRace(this)">🔄 Reset This Race</button>
+          <button class="btn btn-danger" onclick="rnResetRace(this)">🔄 Reset to Qualifying</button>
         </div>
       </div>
       <div class="form-grid full">
@@ -2004,7 +2004,7 @@
     await rnGuarded(btn, async () => {
       const race = (await db.get('races', `id=eq.${RN.raceId}&select=*`))[0];
       const label = race ? `R${race.round} — ${race.name}` : 'this race';
-      const typed = prompt(`Reset "${label}"?\n\nThis wipes ALL sign-ups, check-ins, heats/B-Main/feature sessions, and any posted official results for THIS race, so you can run it again from scratch. Driver season stats credited by this race are un-credited. Other races are untouched.\n\nThis cannot be undone. Type RESET to confirm:`);
+      const typed = prompt(`Reset "${label}" back to the start of qualifying?\n\nThis wipes heats, B-Main, feature, all lineups/in-race results, and any posted official results for THIS race, so you can redraw and re-run from qualifying. Signed-up/checked-in drivers are KEPT. Other races are untouched.\n\nThis cannot be undone. Type RESET to confirm:`);
       if (typed !== 'RESET') { if (typed !== null) toast('Reset cancelled', true); return; }
 
       // Undo any official results already posted for this race (mirrors the
@@ -2026,7 +2026,7 @@
 
       await db.delWhere('results', `race_id=eq.${RN.raceId}`);
       await db.delWhere('race_sessions', `race_id=eq.${RN.raceId}`); // cascades to lineups + session_results
-      await db.delWhere('entries', `race_id=eq.${RN.raceId}`);
+      // entries (sign-ups/check-ins) are intentionally left alone
 
       const liveRows = await db.get('live_state', `race_id=eq.${RN.raceId}`);
       if (liveRows[0]) await db.patch('live_state', `id=eq.${liveRows[0].id}`, { is_live: false, current_stage: 'check_in', session_id: null, message: null });
@@ -2034,7 +2034,7 @@
       localStorage.removeItem(`rn_qual_${RN.raceId}`);
       localStorage.removeItem(`rn_qgroups_${RN.raceId}`);
 
-      toast('Race reset — ready to run again');
+      toast('Reset to qualifying — drivers kept');
       rnRenderAll();
     });
   }
