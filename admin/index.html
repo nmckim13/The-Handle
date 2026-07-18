@@ -1276,7 +1276,21 @@
     if (val === '' || isNaN(n)) delete q[entryId]; else q[entryId] = n;
     rnSaveQual(q);
     rnRenderQualPreview();
+    rnSyncQualTimesLiveDebounced(q);
   }
+  // Mirrors rnSyncQualGroupsLive: mirrors qualifying times onto live_state so
+  // a separate broadcast device (big-screen.html) can rank-order the
+  // qualifying list live as times are entered. Debounced so tabbing through
+  // many lap-time inputs doesn't fire a PATCH per keystroke.
+  async function rnSyncQualTimesLive(q) {
+    if (!RN.raceId) return;
+    try {
+      const rows = await db.get('live_state', `race_id=eq.${RN.raceId}`);
+      if (rows[0]) await db.patch('live_state', `id=eq.${rows[0].id}`, { is_live: true, qual_times: q });
+      else await db.post('live_state', { race_id: RN.raceId, is_live: true, current_stage: 'check_in', qual_times: q });
+    } catch (e) { /* qual_times column may not exist yet (migration 009 pending) — local-only fallback */ }
+  }
+  const rnSyncQualTimesLiveDebounced = debounce(rnSyncQualTimesLive, 600);
   function rnQualRank(entries) {
     const q = rnLoadQual();
     return entries.slice().sort((a, b) => {
@@ -2067,10 +2081,15 @@
       const liveRows = await db.get('live_state', `race_id=eq.${RN.raceId}`);
       if (liveRows[0]) {
         try {
-          await db.patch('live_state', `id=eq.${liveRows[0].id}`, { current_stage: 'check_in', session_id: null, message: null, qual_groups: null });
+          await db.patch('live_state', `id=eq.${liveRows[0].id}`, { current_stage: 'check_in', session_id: null, message: null, qual_groups: null, qual_times: null });
         } catch (e) {
-          // qual_groups column may not exist yet (migration 008 pending)
-          await db.patch('live_state', `id=eq.${liveRows[0].id}`, { current_stage: 'check_in', session_id: null, message: null });
+          try {
+            // qual_times column may not exist yet (migration 009 pending)
+            await db.patch('live_state', `id=eq.${liveRows[0].id}`, { current_stage: 'check_in', session_id: null, message: null, qual_groups: null });
+          } catch (e2) {
+            // qual_groups column may not exist yet either (migration 008 pending)
+            await db.patch('live_state', `id=eq.${liveRows[0].id}`, { current_stage: 'check_in', session_id: null, message: null });
+          }
         }
       }
 
