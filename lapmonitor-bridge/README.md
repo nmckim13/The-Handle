@@ -102,34 +102,45 @@ Quick pre-night check (any machine, needs only the room link):
 `npm install && node probe.js 512060739` → prints the driver list if the room
 is readable.
 
-## How this was built (and what to confirm with your LapMonitor contact)
+## How this was built
 
-The `live_timing` protocol here was reverse-engineered from LapMonitor's own
-public web viewer (`lapmonitor.live/<roomID>`), which does exactly:
+The bridge follows LapMonitor's official **Viewer Client Protocol** (see
+`../LIVE_SERVER_Client_PROTOCOL.md`). A viewer joins with nothing but the room
+ID and then only listens:
 
 ```js
-socket.on('connect', () => socket.emit('joinRoom', ROOM_ID, ack)) // ack.data = drivers[]
-socket.on('addLaps', e => render(e.data))   // full snapshot, each driver has transponderId + laps[]
+socket.on('connect', () => socket.emit('joinRoom', ROOM_ID, ack)) // ack.data = SessionData
+socket.on('createSession', e => render(e.data))  // full snapshot (start/finish/roster change)
+socket.on('addLaps',       e => render(e.data))  // full snapshot with the new lap merged in
 ```
 
-Each driver object: `{ kind:'driver', name, driverUuid, transponderId, laps:[{endTimestamp, duration, lapId}] }`.
+`data` is a **SessionData object**, not a bare array. Drivers live at
+`data.races[0].drivers` (there is always exactly one race), each:
+`{ kind:'driver', name, driverUuid, transponderId, laps:[{ endTimestamp, lapId, kind }] }`.
+Per the protocol the bridge:
 
-Because your contact offered official API access, confirm these four things —
-each maps to a knob already in the code so wiring the official path is a small
-change, not a rewrite:
+- reads `races[0]` (never assumes more than one race);
+- excludes laps with `kind` `"removed"` or `"merged"` before counting/timing;
+- ignores each lap's `duration`/`name` (placeholders) and derives lap times from
+  consecutive `endTimestamp`s (all in **milliseconds**);
+- treats the first crossing as the start line, so `lapCount = laps.length - 1`;
+- totals per race kind: `race`/`qualifying` → last crossing timestamp,
+  `practice` → last − first.
 
-1. **Auth** — is there a token/key? If so, how is it passed (socket.io `auth`,
-   a query param, or a header)? → set `LAPMONITOR_AUTH_TOKEN` and check the
-   `auth:` block in `bridge.js`.
-2. **Join** — is `emit('joinRoom', roomID, ack)` the supported way in, or is
-   there an official endpoint/room-subscribe? → the `connect()` handler.
-3. **transponderId stability** — is `transponderId` the *permanent hardware ID*
-   printed on the transponder (stable across nights) or a *per-session index*?
-   Our whole "assign a driver their transponder once" model assumes it's
-   permanent. If it's per-session, we'd assign transponders each night instead.
-4. **Server version** — socket.io v3/v4 (what this client assumes) or v2? If
-   `connect_error` says "server v2.x", pin the client: `npm i socket.io-client@2`.
+`extractDrivers()` in `bridge.js` also still accepts the older bare-array shape,
+so the bridge keeps working if pointed at a self-hosted/legacy server.
 
-Also ask if there's a documented **REST** endpoint for finished races (their app
-calls `POST /api/staticRaces`) — handy for reconciling official results without
-the CSV export.
+The protocol confirms the four things this integration was originally built
+around (`emit('joinRoom', roomID, ack)` is the supported way in; the room ID in
+`<host>/<roomID>` is the join key; timestamps are ms; socket.io v4). Two things
+it does **not** cover, still worth asking the LapMonitor contact:
+
+- **Auth** — the public protocol needs none, but if a token is ever required,
+  set `LAPMONITOR_AUTH_TOKEN` (wired into the `auth:` block in `bridge.js`).
+- **transponderId stability** — is it the *permanent hardware ID* on the
+  transponder (stable across nights) or a *per-session index*? Our "assign a
+  driver their transponder once" model assumes permanent; if per-session, we'd
+  re-assign each night (the admin UI already supports quick re-assignment).
+- A documented **REST** endpoint for finished races (their app calls
+  `POST /api/staticRaces`) — handy for reconciling official results without the
+  CSV export.
