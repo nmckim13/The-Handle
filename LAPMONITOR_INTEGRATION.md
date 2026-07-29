@@ -50,28 +50,36 @@ a race live in the admin, then auto-starts feeding timing to the big screen, and
 idles again when the night completes — no per-night steps beyond what you
 already do in the admin.
 
-## Questions for your LapMonitor contact
+## Protocol status & open questions
 
-The live protocol here was reverse-engineered from LapMonitor's own web viewer
-and works as-is, but since he offered official API access, confirming these lets
-us switch to the supported path (each maps to a knob already in `bridge.js`, so
-it's a small change, not a rewrite):
+The bridge now follows LapMonitor's **official Viewer Client Protocol**
+(`LIVE_SERVER_Client_PROTOCOL.md`). That answers most of what was previously
+reverse-engineered:
 
-> 1. **Auth** — Is there an API key/token? If so, how is it passed — socket.io
->    `auth`, a query param, or an HTTP header?
-> 2. **Joining a live session** — Is `emit("joinRoom", <roomID>)` the supported
->    way to subscribe to a live race, or is there an official endpoint? And is
->    the roomID in the `lapmonitor.live/<id>` URL stable for our track?
-> 3. **Transponder IDs** — Is `transponderId` the *permanent hardware ID* on the
+- **Joining** — `emit("joinRoom", <roomID>, ack)` inside the `connect` handler
+  is the supported way in; the room ID in `<host>/<roomID>` is the join key.
+- **Wire shape** — `data` is a `SessionData` object; drivers are at
+  `races[0].drivers`, and both `createSession` and `addLaps` carry a full
+  snapshot (replace, don't merge). The bridge reads `races[0]`, excludes
+  `removed`/`merged` laps, and treats all times as milliseconds.
+- **Socket version** — socket.io v4 (matches `socket.io-client@^4`).
+
+Two things the public protocol does **not** settle — still worth confirming
+with your LapMonitor contact (each maps to a knob already in `bridge.js`):
+
+> 1. **Auth** — the public protocol needs none, but if a token is ever required,
+>    how is it passed (socket.io `auth`, a query param, or a header)? →
+>    `LAPMONITOR_AUTH_TOKEN`.
+> 2. **Transponder IDs** — Is `transponderId` the *permanent hardware ID* on the
 >    physical transponder (same every night), or a *per-session* number? Our
 >    "assign a driver their transponder once" model assumes it's permanent.
-> 4. **Socket version + REST** — Is the live server socket.io v3/v4 or v2? And is
->    there a documented REST endpoint for finished-race results (the app calls
->    `POST /api/staticRaces`) we could use to reconcile official results?
+> 3. **REST results** — Is there a documented endpoint for finished-race results
+>    (the app calls `POST /api/staticRaces`) we could use to reconcile official
+>    results without the CSV export?
 
 ## Notes / caveats
 
-- **transponderId permanence** is the one open assumption (question 3). If it's
+- **transponderId permanence** is the one open assumption (question 2). If it's
   per-session, we'd re-assign transponders each night — the admin UI already
   supports quick re-assignment, so it's not a blocker, just a workflow change.
 - **The bridge needs to stay running** for the whole night (it holds a live

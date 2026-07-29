@@ -8,18 +8,25 @@
  * OUR drivers (car number, color, standings) via the transponder each driver
  * is assigned in the admin Drivers tab.
  *
- * Protocol (reverse-engineered from lapmonitor.live's own web viewer — see
- * README for how this was found and what to confirm with the LapMonitor
- * contact). The viewer does exactly this:
+ * Protocol: follows the official "LapMonitor Live Server – Viewer Client
+ * Protocol" (see LIVE_SERVER_Client_PROTOCOL.md / README). The viewer does:
  *
  *   socket.on('connect', () => socket.emit('joinRoom', ROOM_ID, ack))
- *   // ack -> { status: 200, data: [ ...drivers ] }
+ *   // ack -> { status: 200, message, data: SessionData }
  *   socket.on('addLaps',       e => render(e.data))   // full snapshot each time
  *   socket.on('createSession', e => render(e.data))
  *
- * Each element of `data` is:
+ * `data` is a SessionData object (NOT a bare array). Drivers live at
+ * `data.races[0].drivers`; each driver is:
  *   { kind: 'driver', name, driverUuid, transponderId,
- *     laps: [ { endTimestamp, duration, lapId, userIndex }, ... ] }
+ *     laps: [ { endTimestamp, lapId, kind, duration, name }, ... ] }
+ * where lap `duration`/`name` are placeholders (0 / "name") to ignore, and lap
+ * `kind` may be "normal" | "removed" | "merged" | "inferred" — "removed" and
+ * "merged" laps are excluded from timing. Every timestamp is milliseconds.
+ *
+ * For resilience against an older/self-hosted server that still emits a bare
+ * `[ ...drivers ]` array (the shape this bridge was first reverse-engineered
+ * against), extractDrivers() accepts both.
  *
  * Run:  node bridge.js   (config via .env — see .env.example)
  * Needs Node 18+ (uses the built-in global fetch).
@@ -127,33 +134,55 @@ async function upsertTiming(rows) {
 }
 
 // --- Lap math -------------------------------------------------------------
-// Turn LapMonitor's per-driver lap list into best/last/count/total in seconds.
-// Prefer each lap's own `duration`; if durations are absent/zero (some feeds
-// only send crossing timestamps), derive them from consecutive endTimestamps.
-// The first crossing is the start line, not a completed lap, so it's skipped
-// when deriving.
-function summarizeLaps(laps) {
-  const clean = (Array.isArray(laps) ? laps : [])
-    .filter(l => l && typeof l.endTimestamp === 'number')
-    .sort((a, b) => a.endTimestamp - b.endTimestamp);
+// Normalize a socket payload into the drivers array. The official protocol
+// wraps drivers inside a SessionData object (data.races[0].drivers); an older
+// server emits a bare drivers array. Accept both. Returns { race, drivers }.
+function extractDrivers(data) {
+  if (Array.isArray(data)) return { race: null, drivers: data };      // legacy bare-array shape
+  const race = data && Array.isArray(data.races) ? data.races[0] : null; // official: always races[0]
+  return { race, drivers: race && Array.isArray(race.drivers) ? race.drivers : [] };
+}
 
-  const durationsMs = [];
-  for (let i = 0; i < clean.length; i++) {
-    let ms = Number(clean[i].duration);
-    if (!(ms > 0)) ms = i > 0 ? clean[i].endTimestamp - clean[i - 1].endTimestamp : 0;
-    if (ms > 0) durationsMs.push(ms);
+// Turn one driver's lap list into best/last/count/total in seconds, per the
+// protocol's "Deriving the Display Values" section:
+//   - exclude "removed" and "merged" laps (operator-deleted) before computing;
+//   - lap `duration`/`name` are placeholders — ignore them, derive lap times
+//     from consecutive endTimestamps (all in ms);
+//   - the first crossing is the start line, not a completed lap:
+//     lapCount = laps.length - 1;
+//   - total: race/qualifying = last.endTimestamp; practice = last - first
+//     (practice offsets each driver to their own first detection).
+function summarizeLaps(laps, kind) {
+  const clean = (Array.isArray(laps) ? laps : [])
+    .filter(l => l && typeof l.endTimestamp === 'number'
+      && l.kind !== 'removed' && l.kind !== 'merged')
+    // Laps aren't guaranteed sorted; order by lapId when present, else by time.
+    .sort((a, b) => (a.lapId ?? a.endTimestamp) - (b.lapId ?? b.endTimestamp));
+
+  const lapTimesMs = [];
+  for (let i = 1; i < clean.length; i++) {
+    const ms = clean[i].endTimestamp - clean[i - 1].endTimestamp;
+    if (ms > 0) lapTimesMs.push(ms);
   }
 
-  const toS = ms => Math.round((ms / 1000) * 1000) / 1000;
+  const toS = ms => Math.round(ms) / 1000;
+  const lapCount = Math.max(0, clean.length - 1);
+  let totalMs = null;
+  if (clean.length >= 2) {
+    const first = clean[0].endTimestamp, last = clean[clean.length - 1].endTimestamp;
+    totalMs = (kind === 'practice') ? last - first : last;
+  }
   return {
-    laps_count: durationsMs.length,
-    last_seconds: durationsMs.length ? toS(durationsMs[durationsMs.length - 1]) : null,
-    best_seconds: durationsMs.length ? toS(Math.min(...durationsMs)) : null,
-    total_seconds: durationsMs.length ? toS(durationsMs.reduce((a, b) => a + b, 0)) : null,
+    laps_count: lapCount,
+    last_seconds: lapTimesMs.length ? toS(lapTimesMs[lapTimesMs.length - 1]) : null,
+    best_seconds: lapTimesMs.length ? toS(Math.min(...lapTimesMs)) : null,
+    total_seconds: totalMs != null ? toS(totalMs) : null,
   };
 }
 
-// LapMonitor ranks like a race: most laps first, then least total time.
+// Protocol ranking: most laps first, then least total time. `total_seconds`
+// already encodes the right tie-break (endTimestamp of the last crossing for
+// race/qualifying, elapsed time for practice), so ordering by it matches spec.
 function rank(a, b) {
   if (b.laps_count !== a.laps_count) return b.laps_count - a.laps_count;
   return (a.total_seconds ?? Infinity) - (b.total_seconds ?? Infinity);
@@ -161,17 +190,19 @@ function rank(a, b) {
 
 // --- Snapshot handler -----------------------------------------------------
 async function handleSnapshot(data) {
-  if (!Array.isArray(data)) return;
+  const { race, drivers: allDrivers } = extractDrivers(data);
+  if (!Array.isArray(allDrivers)) return;
   lastSnapshotAt = Date.now();
   // Only write while a race night is live (auto-launch behavior). When nothing
   // is live the bridge stays connected and quietly idles.
   if (!raceLive || !raceId) { logIdle(); return; }
 
-  const drivers = data.filter(d => d && d.kind === 'driver' && d.transponderId != null);
+  const raceKind = race && race.kind ? race.kind : null; // "race" | "qualifying" | "practice"
+  const drivers = allDrivers.filter(d => d && d.kind === 'driver' && d.transponderId != null);
   const summarized = drivers.map(d => ({
     transponder_id: Number(d.transponderId),
     lm_name: d.name || null,
-    ...summarizeLaps(d.laps),
+    ...summarizeLaps(d.laps, raceKind),
   }));
   summarized.sort(rank);
 
