@@ -48,17 +48,22 @@
 
   async function syncCurrent2026Round(client) {
     try {
-      const rounds = await client.get('races', 'select=id,round,status&season=eq.2026&round=in.(4,5)');
+      const rounds = await client.get('races', 'select=id,round,status,race_date&season=eq.2026&round=in.(4,5)');
       const round4 = rounds.find(r => Number(r.round) === 4);
       const round5 = rounds.find(r => Number(r.round) === 5);
 
-      // Self-disabling migration: only act while R4 is still incorrectly shown
-      // as upcoming. Once this lands, future visits do nothing, so completing R5
-      // later will not be overwritten.
-      if (!round4 || round4.status !== 'upcoming') return;
+      // Round 4 was canceled by storms. Only change its status if it is still
+      // incorrectly marked upcoming.
+      if (round4 && round4.status === 'upcoming') {
+        await client.patch('races', `id=eq.${round4.id}`, { status: 'canceled' });
+      }
 
-      await client.patch('races', `id=eq.${round4.id}`, { status: 'canceled' });
-      if (round5) await client.patch('races', `id=eq.${round5.id}`, { status: 'upcoming' });
+      // Round 5 is this week's race. Keep the date correction independent from
+      // the Round 4 status so it still runs after the cancellation fix lands.
+      // Do not force status here, so completing Round 5 later cannot be undone.
+      if (round5 && round5.race_date !== '2026-09-12') {
+        await client.patch('races', `id=eq.${round5.id}`, { race_date: '2026-09-12' });
+      }
     } catch (e) {
       console.warn('Round 4/5 season sync did not complete:', e);
     }
@@ -109,9 +114,9 @@
       }
     };
 
-    // The public site decides the current race and registration availability
-    // directly from race status. Correct the stale 2026 state using the same
-    // authenticated client the page already created.
+    // The public site decides the current race, date, and registration
+    // availability from the races table. Correct the stale 2026 state using the
+    // same authenticated client the page already created.
     syncCurrent2026Round(client);
     return client;
   }
