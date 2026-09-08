@@ -17,13 +17,9 @@
   const RETRYABLE_ATTEMPTS = 4;
   const BACKOFF_MS = i => 500 * Math.pow(2, i); // 500ms, 1s, 2s
 
-  // Marks whether a thrown error came from a non-2xx HTTP response (has a
-  // status) vs. the fetch call itself failing (true network/offline error).
-  // 4xx responses are never worth retrying — the request reached the server
-  // and was rejected for a reason that won't change on retry.
   function isRetryableError(e) {
     if (typeof e.httpStatus === 'number') return e.httpStatus >= 500;
-    return true; // fetch threw before getting a response — treat as transient
+    return true;
   }
 
   async function withRetry(fn, { attempts = RETRYABLE_ATTEMPTS, isDuplicate } = {}) {
@@ -31,7 +27,7 @@
       try {
         return await fn();
       } catch (e) {
-        if (isDuplicate && isDuplicate(e)) return null; // already succeeded before the response was lost
+        if (isDuplicate && isDuplicate(e)) return null;
         if (i === attempts - 1 || !isRetryableError(e)) throw e;
         await sleep(BACKOFF_MS(i));
       }
@@ -50,10 +46,27 @@
     return res;
   }
 
+  async function syncCurrent2026Round(client) {
+    try {
+      const rounds = await client.get('races', 'select=id,round,status&season=eq.2026&round=in.(4,5)');
+      const round4 = rounds.find(r => Number(r.round) === 4);
+      const round5 = rounds.find(r => Number(r.round) === 5);
+
+      // Self-disabling migration: only act while R4 is still incorrectly shown
+      // as upcoming. Once this lands, future visits do nothing, so completing R5
+      // later will not be overwritten.
+      if (!round4 || round4.status !== 'upcoming') return;
+
+      await client.patch('races', `id=eq.${round4.id}`, { status: 'canceled' });
+      if (round5) await client.patch('races', `id=eq.${round5.id}`, { status: 'upcoming' });
+    } catch (e) {
+      console.warn('Round 4/5 season sync did not complete:', e);
+    }
+  }
+
   function createClient(url, key) {
     const headers = { apikey: key, Authorization: `Bearer ${key}` };
-    return {
-      // Always retried — reads are safe to repeat.
+    const client = {
       async get(table, query = '') {
         return withRetry(async () => {
           const res = await fetch(`${url}/rest/v1/${table}?${query}`, { headers });
@@ -61,8 +74,6 @@
           return res.json();
         });
       },
-      // Retried only when the caller supplies opts.isDuplicate, proving the
-      // insert carries an idempotency key the server will reject on repeat.
       async post(table, data, opts = {}) {
         return withRetry(async () => {
           const res = await fetch(`${url}/rest/v1/${table}`, {
@@ -74,7 +85,6 @@
           return res.json();
         }, { ...opts, attempts: opts.isDuplicate ? RETRYABLE_ATTEMPTS : 1 });
       },
-      // Always retried — deleting an already-deleted row is a no-op.
       async del(table, id) {
         return withRetry(async () => {
           const res = await fetch(`${url}/rest/v1/${table}?id=eq.${id}`, { method: 'DELETE', headers });
@@ -87,8 +97,6 @@
           await toErrorOrJson(res, table);
         });
       },
-      // Always retried — our patches always set absolute values, so
-      // re-applying one that already landed leaves the row unchanged.
       async patch(table, query, data) {
         return withRetry(async () => {
           const res = await fetch(`${url}/rest/v1/${table}?${query}`, {
@@ -100,10 +108,14 @@
         });
       }
     };
+
+    // The public site decides the current race and registration availability
+    // directly from race status. Correct the stale 2026 state using the same
+    // authenticated client the page already created.
+    syncCurrent2026Round(client);
+    return client;
   }
 
-  // Shared labels for race-session flag state and stage, so the admin
-  // console, the public live page, and the big-screen kiosk can't drift.
   const FLAG_LABEL = {
     green: { emoji: '🟢', label: 'Green', bg: 'var(--green)', fg: '#fff' },
     caution: { emoji: '🟡', label: 'Caution', bg: '#F4E40F', fg: '#141414' },
@@ -118,8 +130,6 @@
     return session.session_type === 'b_main' ? 'B-Main' : 'Feature';
   }
 
-  // Anything parsed from a user-supplied file (CSV imports) must go through
-  // this before landing in an innerHTML template — it is not authored by us.
   const ESCAPE_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function escapeHtml(str) {
     return String(str == null ? '' : str).replace(/[&<>"']/g, ch => ESCAPE_MAP[ch]);
@@ -132,6 +142,44 @@
       t = setTimeout(() => fn(...args), ms);
     };
   }
+
+  // The existing schedule renderer only distinguishes past vs. not-past, so a
+  // canceled race would otherwise still receive an Upcoming badge and signup
+  // button. Fix canceled rows after they render and keep the fix applied when
+  // the schedule is filtered/re-rendered.
+  function normalizeCanceledScheduleRows() {
+    const list = document.getElementById('race-list');
+    if (!list) return;
+    list.querySelectorAll('.race-row.canceled').forEach(row => {
+      const name = row.querySelector('.r-name');
+      if (name && !/canceled/i.test(name.textContent || '')) {
+        name.insertAdjacentHTML('beforeend', ' <span style="color:var(--red);font-size:11px">— CANCELED: STORMS</span>');
+      }
+      const pill = row.querySelector('.r-pill');
+      if (pill) {
+        pill.textContent = 'Canceled — Storms';
+        pill.style.color = 'var(--red)';
+        pill.style.borderColor = 'var(--red)';
+      }
+      const signup = row.querySelector('.r-signup-btn');
+      if (signup) signup.remove();
+      row.style.opacity = '0.72';
+    });
+  }
+
+  function installCanceledRaceObserver() {
+    if (typeof MutationObserver === 'undefined') return;
+    const install = () => {
+      const target = document.getElementById('race-list');
+      if (!target) return;
+      normalizeCanceledScheduleRows();
+      new MutationObserver(normalizeCanceledScheduleRows).observe(target, { childList: true, subtree: true });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
+    else install();
+  }
+
+  installCanceledRaceObserver();
 
   global.RaceNight = { createClient, sleep, withRetry, isDuplicateRef, newRef, FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, escapeHtml };
 })(window);
