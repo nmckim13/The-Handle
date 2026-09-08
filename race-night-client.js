@@ -5,7 +5,7 @@
 // Retry policy: GET/PATCH/DELETE are safe to retry blindly (a repeat read is
 // harmless; our PATCHes always set absolute values and our DELETEs target a
 // specific id/filter, so re-applying one that already landed is a no-op).
-// POST is NOT retried by default, because most inserts aren't idempotent —
+// POST is NOT retried by default, because most inserts aren't idempotent -
 // retrying one whose response got lost (but which actually landed) would
 // create a duplicate row. A POST is only retried when the caller proves it's
 // safe by passing a `client_ref`-style `isDuplicate(error)` check, so a
@@ -44,29 +44,6 @@
       throw err;
     }
     return res;
-  }
-
-  async function syncCurrent2026Round(client) {
-    try {
-      const rounds = await client.get('races', 'select=id,round,status,race_date&season=eq.2026&round=in.(4,5)');
-      const round4 = rounds.find(r => Number(r.round) === 4);
-      const round5 = rounds.find(r => Number(r.round) === 5);
-
-      // Round 4 was canceled by storms. Only change its status if it is still
-      // incorrectly marked upcoming.
-      if (round4 && round4.status === 'upcoming') {
-        await client.patch('races', `id=eq.${round4.id}`, { status: 'canceled' });
-      }
-
-      // Round 5 is this week's race. Keep the date correction independent from
-      // the Round 4 status so it still runs after the cancellation fix lands.
-      // Do not force status here, so completing Round 5 later cannot be undone.
-      if (round5 && round5.race_date !== '2026-09-12') {
-        await client.patch('races', `id=eq.${round5.id}`, { race_date: '2026-09-12' });
-      }
-    } catch (e) {
-      console.warn('Round 4/5 season sync did not complete:', e);
-    }
   }
 
   function createClient(url, key) {
@@ -114,18 +91,17 @@
       }
     };
 
-    // The public site decides the current race, date, and registration
-    // availability from the races table. Correct the stale 2026 state using the
-    // same authenticated client the page already created.
-    syncCurrent2026Round(client);
+    // Creating a shared client must not change race dates or statuses.
+    // Schedule corrections belong in an explicit, verified admin operation,
+    // not an automatic write performed by every visitor to the public site.
     return client;
   }
 
   const FLAG_LABEL = {
-    green: { emoji: '🟢', label: 'Green', bg: 'var(--green)', fg: '#fff' },
-    caution: { emoji: '🟡', label: 'Caution', bg: '#F4E40F', fg: '#141414' },
-    red: { emoji: '🔴', label: 'Red Flag', bg: 'var(--red)', fg: '#fff' },
-    checkered: { emoji: '🏁', label: 'Checkered', bg: '#fff', fg: '#141414' }
+    green: { emoji: '\u{1F7E2}', label: 'Green', bg: 'var(--green)', fg: '#fff' },
+    caution: { emoji: '\u{1F7E1}', label: 'Caution', bg: '#F4E40F', fg: '#141414' },
+    red: { emoji: '\u{1F534}', label: 'Red Flag', bg: 'var(--red)', fg: '#fff' },
+    checkered: { emoji: '\u{1F3C1}', label: 'Checkered', bg: '#fff', fg: '#141414' }
   };
   const STAGE_LABEL = { check_in: 'Check-In', pill_draw: 'Pill Draw', heat: 'Heat Racing', b_main: 'B-Main', feature: 'Feature', complete: 'Complete' };
 
@@ -150,25 +126,25 @@
 
   // The existing schedule renderer only distinguishes past vs. not-past, so a
   // canceled race would otherwise still receive an Upcoming badge and signup
-  // button. Fix canceled rows after they render and keep the fix applied when
-  // the schedule is filtered/re-rendered.
+  // button. Keep this display correction read-only and idempotent: setting
+  // textContent on every observer callback creates an endless mutation loop.
   function normalizeCanceledScheduleRows() {
     const list = document.getElementById('race-list');
     if (!list) return;
     list.querySelectorAll('.race-row.canceled').forEach(row => {
       const name = row.querySelector('.r-name');
       if (name && !/canceled/i.test(name.textContent || '')) {
-        name.insertAdjacentHTML('beforeend', ' <span style="color:var(--red);font-size:11px">— CANCELED: STORMS</span>');
+        name.insertAdjacentHTML('beforeend', ' <span style="color:var(--red);font-size:11px">\u2014 CANCELED: STORMS</span>');
       }
       const pill = row.querySelector('.r-pill');
-      if (pill) {
-        pill.textContent = 'Canceled — Storms';
+      if (pill && pill.textContent !== 'Canceled \u2014 Storms') {
+        pill.textContent = 'Canceled \u2014 Storms';
         pill.style.color = 'var(--red)';
         pill.style.borderColor = 'var(--red)';
       }
       const signup = row.querySelector('.r-signup-btn');
       if (signup) signup.remove();
-      row.style.opacity = '0.72';
+      if (row.style.opacity !== '0.72') row.style.opacity = '0.72';
     });
   }
 
