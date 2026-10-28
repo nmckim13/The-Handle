@@ -10,6 +10,7 @@ import unittest
 import test_admin_security as security
 
 PREFLIGHT = (security.MIGRATIONS / 'release_preflight.sql').read_text()
+STAGE_REPAIR = (security.MIGRATIONS / 'repairs/race_sessions_unique_stage.sql').read_text()
 REMOVE_010 = """
 drop view public.public_entries, public.public_drivers cascade;
 drop function public.submit_signup(uuid,uuid,text,text,text,text), public.is_admin() cascade;
@@ -113,6 +114,60 @@ class ReleasePreflight(unittest.TestCase):
                     self.assertNotIn('does not exist', output)
                 finally:
                     self.sql(undo)
+
+    def test_stage_repair_restores_uniqueness_without_changing_existing_state(self):
+        self.sql(f"""
+          insert into races(id,status,race_date) values ('{security.OTHER_RACE}','upcoming',current_date+2);
+          insert into race_sessions(race_id,session_type,session_number,laps_scheduled,status) values
+            ('{security.RACE}','heat',1,8,'completed'),
+            ('{security.RACE}','heat',2,9,'pending'),
+            ('{security.RACE}','feature',1,20,'pending'),
+            ('{security.OTHER_RACE}','heat',1,11,'pending');
+          insert into lineups(session_id,entry_id,starting_position)
+            select s.id,e.id,1 from race_sessions s join entries e on e.race_id=s.race_id;
+          insert into session_results(session_id,entry_id,finishing_position,laps_complete)
+            select s.id,e.id,1,8 from race_sessions s join entries e on e.race_id=s.race_id
+            where s.session_type='heat' and s.session_number=1;
+          insert into live_state(race_id,session_id,is_live)
+            select race_id,id,false from race_sessions where race_id='{security.RACE}'
+            and session_type='heat' and session_number=1;
+          insert into live_timing(room_id,transponder_id,race_id,driver_id,laps_count)
+            values ('repair-local',7,'{security.RACE}','{security.DRIVER}',8);
+        """)
+        healthy = self.dump()
+        duplicate = f"""insert into race_sessions(race_id,session_type,session_number)
+          values ('{security.RACE}','heat',1);"""
+        self.sql('drop index public.race_sessions_unique_stage;')
+        try:
+            self.run_preflight('unique index on public.race_sessions')
+            # Reproduce the missing protection, without retaining a duplicate.
+            self.sql('begin; ' + duplicate + ' rollback;')
+            self.sql(STAGE_REPAIR)
+            self.assertEqual(self.dump(), healthy)
+            self.run_preflight()
+            self.sql(duplicate, error='23505')
+            self.assertEqual(self.dump(), healthy)
+        finally:
+            self.sql('drop index if exists public.race_sessions_unique_stage;')
+            self.sql((security.MIGRATIONS / '003_race_sessions_stage_lock.sql').read_text())
+
+    def test_stage_repair_fails_closed_on_duplicates_and_name_collisions(self):
+        for conflict, error in [('duplicate_data','23505'), ('index_name','42P07')]:
+            with self.subTest(conflict=conflict):
+                self.sql('drop index public.race_sessions_unique_stage;')
+                try:
+                    if conflict == 'duplicate_data':
+                        self.sql(f"""insert into race_sessions(race_id,session_type,session_number)
+                          values ('{security.RACE}','heat',1),('{security.RACE}','heat',1);""")
+                    else:
+                        self.sql('create index race_sessions_unique_stage on public.race_sessions(race_id);')
+                    before = self.dump()
+                    self.sql(STAGE_REPAIR, error=error)
+                    self.assertEqual(self.dump(), before)
+                    self.run_preflight('unique index on public.race_sessions')
+                finally:
+                    self.sql('delete from race_sessions; drop index if exists public.race_sessions_unique_stage;')
+                    self.sql((security.MIGRATIONS / '003_race_sessions_stage_lock.sql').read_text())
 
     def test_existing_migration_objects_stop_once_only_rerun(self):
         self.sql((security.MIGRATIONS / '010_admin_security.sql').read_text())

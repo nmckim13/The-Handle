@@ -79,6 +79,35 @@ operationally sensitive. Store reports privately and share only reviewed,
 redacted findings. It does **not** prove foreign-key actions, defaults, custom
 constraint/trigger behavior, API grants, view safety or remote connectivity.
 
+### Missing session-stage index: separately approved repair
+
+If preflight reports the missing unique key on
+`race_sessions(race_id, session_type, session_number)`, the standalone repair is
+[migrations/repairs/race_sessions_unique_stage.sql](migrations/repairs/race_sessions_unique_stage.sql).
+It restores only the index originally defined in 003; it does not replay 003 or
+any other historical migration, apply 010–018, or repair/delete session data.
+Preparing this file locally is **not permission to apply it**.
+
+- [ ] Review current index definitions and duplicate stage groups privately.
+  Existing duplicates or an incompatible index need a separate resolution;
+  do not delete history or drop an existing index automatically.
+- [ ] Rehearse on isolated staging with backup/restore coverage. Obtain explicit
+  approval for the named database, trusted operator and idle maintenance window.
+- [ ] Run only this repair file as a standalone batch with stop-on-error enabled.
+  Ordinary `CREATE UNIQUE INDEX` briefly blocks session-table writers; the file
+  limits lock waits to 2 seconds and each statement to 20 seconds. Duplicate
+  data, a name collision or timeout rolls back without leaving a partial index.
+  It deliberately has no `IF NOT EXISTS`; a rerun is not silently accepted.
+- [ ] On failure, stop and diagnose; do not retry automatically. Roll back any
+  failed transaction left open by a SQL editor. On success, record the outcome
+  and rerun the **entire read-only preflight** before considering 010–018.
+  Clearing this prerequisite does not satisfy the remaining manual release gates.
+
+Local regression check: `python3 migrations/tests/test_release_preflight.py`.
+The disposable fixture covers the missing-index failure, restored preflight,
+exact schema/grant/data preservation, duplicate rejection and fail-closed errors.
+Local PostgreSQL results do not substitute for staging on the deployed version.
+
 ## 3. Resolve manual release gates
 
 - [ ] Review the real schema, FK targets/delete actions, defaults (including
