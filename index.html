@@ -24,6 +24,7 @@
 <meta name="twitter:description" content="Backyard stock predator kart racing at The Handle Dirt Oval in Westville, IN. Live standings, points, schedule, and race footage.">
 <meta name="twitter:image" content="https://yardkartz.com/logo.png">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/live-board.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -398,16 +399,19 @@
 
   /* ANNOUNCEMENTS */
   #announce-banner { display: none; width: 100%; padding: 11px 16px; position: relative; }
-  #announce-banner.show { display: flex; align-items: center; gap: 12px; }
+  #announce-banner.show { display:grid; grid-template-columns:minmax(0,1fr) 44px; align-items:center; gap:8px 12px; }
   .ann-rain_delay { background: #1c4a80; border-bottom: 3px solid var(--yellow); }
   .ann-cancellation { background: var(--red); border-bottom: 3px solid var(--ink); }
   .ann-all_clear { background: #1a6030; border-bottom: 3px solid var(--yellow); }
   .ann-reschedule { background: #6a3800; border-bottom: 3px solid var(--yellow); }
   .ann-general { background: var(--ink); border-bottom: 3px solid var(--yellow); }
   .ann-race_night_reminder { background: #3a2060; border-bottom: 3px solid var(--yellow); }
-  .announce-msg { font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; flex: 1; text-align: center; }
-  .announce-time { font-size: 11px; color: rgba(255,255,255,0.45); white-space: nowrap; flex-shrink: 0; font-weight: 700; }
-  .announce-close { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 22px; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color 0.1s; }
+  .announce-copy { min-width:0; overflow-wrap:anywhere; }
+  .announce-type { display:block; font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .announce-msg { display:block; font-family:'Archivo',sans-serif; font-size:15px; font-weight:900; color:#fff; white-space:pre-wrap; }
+  .announce-time { grid-column:1; font-size:12px; color:#fff; font-weight:700; overflow-wrap:anywhere; }
+  .announce-close { grid-column:2; grid-row:1 / span 2; min-width:44px; min-height:44px; background:none; border:1px solid rgba(255,255,255,.5); border-radius:8px; color:#fff; font-size:24px; cursor:pointer; }
+  .announce-close:focus-visible { outline:2px solid #fff; outline-offset:3px; }
   .announce-close:hover { color: #fff; }
 
   /* SIGN UP */
@@ -878,6 +882,7 @@
   <!-- LIVE TIMING -->
   <div class="page" id="page-live">
     <div class="sect-lbl" style="margin-bottom:14px">Race Night — Live</div>
+    <section id="live-board-status" aria-label="Race board updates"></section>
     <div id="live-leaderboard"><div class="loading">Loading</div></div>
     <div class="sect-lbl" style="margin:20px 0 14px">Live timing powered by LapMonitor</div>
     <iframe src="https://lapmonitor.live/512060739" style="width:100%;height:80vh;min-height:500px;border:none;border-radius:10px;background:var(--asphalt-mid);display:block;" allowfullscreen></iframe>
@@ -899,24 +904,15 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="/race-night-client.js"></script>
 <script src="/driver-graphics.js"></script>
+<script src="/live-board.js"></script>
 <script>
 const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
 
-const { isDuplicateRef, newRef, FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, escapeHtml } = window.RaceNight;
+const { newRef, FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, raceCountdown, escapeHtml, safeUrl, safeColor, ANNOUNCEMENT_CLASS, announcementAge } = window.RaceNight;
 const sbClient = window.RaceNight.createClient(SURL, SKEY);
 const get = sbClient.get;
 const post = sbClient.post;
-
-function calcAge(birthday) {
-  if (!birthday) return null;
-  const today = new Date();
-  const dob = new Date(birthday);
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-  return age;
-}
 
 function showPage(id, btn) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -966,7 +962,7 @@ function renderSessionBoardCard(s, lineup, results, isCurrent){
     : done ? '<span style="color:var(--green)">&#10003; Final</span>'
     : isCurrent ? '<span style="color:var(--yellow)">On Deck</span>'
     : '<span style="color:var(--text2)">Up Next</span>';
-  const nameCell = e => `<span style="display:inline-flex;align-items:center;gap:8px">${rnNumCell(e, 26)}<span style="color:${e?.color||'var(--white)'}">${escapeHtml(e?.name||'—')}</span></span>`;
+  const nameCell = e => `<span style="display:inline-flex;align-items:center;gap:8px">${rnNumCell(e, 26)}<span style="color:${safeColor(e?.color)}">${escapeHtml(e?.name||'—')}</span></span>`;
   let rowsHtml, headCol;
   if(results.length){
     headCol = 'Pos';
@@ -1003,7 +999,7 @@ function renderLiveState(state, race, sessions, lineupsBy, resultsBy){
   const header = `
     ${flag ? `<div class="info-card" style="background:${flag.bg};color:${flag.fg};border-color:${flag.bg};text-align:center"><h3 style="color:${flag.fg}">${flag.emoji} ${flag.label}</h3></div>` : ''}
     <div class="info-card" style="border-color:var(--red)">
-      <h3>&#9679; LIVE — ${stageLabel}${sessionSuffix}</h3>
+      <h3>&#9679; LIVE — ${escapeHtml(stageLabel)}${sessionSuffix}</h3>
       <p>${race ? ('R'+race.round+' — '+escapeHtml(race.name)) : ''}</p>
       ${lapLine}
     </div>`;
@@ -1013,31 +1009,42 @@ function renderLiveState(state, race, sessions, lineupsBy, resultsBy){
   const board = sessions.map(s => renderSessionBoardCard(s, lineupsBy[s.id]||[], resultsBy[s.id]||[], !!active && s.id===active.id)).join('');
   return header + `<div class="sect-lbl" style="margin:6px 0 12px">Line-Ups &amp; Results — find your kart</div>` + board;
 }
-async function loadLiveRacing(){
+async function loadLiveBoard(signal){
   const wrap = document.getElementById('live-leaderboard');
-  const rows = await get('live_state','select=*&is_live=eq.true&limit=1');
+  const rows = await get('live_state','select=*&is_live=eq.true&limit=1', { signal });
   const state = rows[0];
   if(!state){
     wrap.innerHTML = '<div class="info-card"><h3>Not Live Right Now</h3><p>Check back on race night — this page updates automatically once the admin starts the show.</p></div>';
-    return;
+    return { live: false };
   }
-  const races = await get('races', `select=*&id=eq.${state.race_id}`);
+  const races = await get('races', `select=*&id=eq.${state.race_id}`, { signal });
   const race = races[0];
-  const sessionsRaw = await get('race_sessions', `select=*&race_id=eq.${state.race_id}`);
+  const sessionsRaw = await get('race_sessions', `select=*&race_id=eq.${state.race_id}`, { signal });
   const sessions = sessionsRaw.slice().sort((a,b)=>(RN_STAGE_ORDER[a.session_type]-RN_STAGE_ORDER[b.session_type])||(a.session_number-b.session_number));
   const lineupsBy = {}, resultsBy = {};
   sessions.forEach(s=>{ lineupsBy[s.id]=[]; resultsBy[s.id]=[]; });
   if(sessions.length){
     const ids = sessions.map(s=>s.id).join(',');
     const [lus, res] = await Promise.all([
-      get('lineups', `select=*,entries(name,car_number,color)&session_id=in.(${ids})&order=starting_position.asc`),
-      get('session_results', `select=*,entries(name,car_number,color)&session_id=in.(${ids})&order=finishing_position.asc`)
+      get('lineups', `select=*,entries:public_entries(name,car_number,color)&session_id=in.(${ids})&order=starting_position.asc`, { signal }),
+      get('session_results', `select=*,entries:public_entries(name,car_number,color)&session_id=in.(${ids})&order=finishing_position.asc`, { signal })
     ]);
     lus.forEach(l => lineupsBy[l.session_id] && lineupsBy[l.session_id].push(l));
     res.forEach(r => resultsBy[r.session_id] && resultsBy[r.session_id].push(r));
   }
+  const metadata = { live: true };
+  try {
+    const timing = await get('live_timing', `select=updated_at&race_id=eq.${state.race_id}&order=updated_at.desc&limit=1`, { signal });
+    metadata.timingAt = timing[0]?.updated_at;
+  } catch { metadata.timingUnavailable = true; }
   wrap.innerHTML = renderLiveState(state, race, sessions, lineupsBy, resultsBy);
+  return metadata;
 }
+const liveUpdates = window.LiveBoard.create({
+  root: document.getElementById('live-board-status'), load: loadLiveBoard,
+  isActive: () => document.getElementById('page-live').classList.contains('active')
+});
+function loadLiveRacing(){ return liveUpdates.refresh(); }
 // Push updates via Supabase Realtime for near-instant refresh; a slow poll
 // stays on underneath as a safety net in case the websocket drops.
 let _liveChannel = null;
@@ -1049,10 +1056,11 @@ function ensureLiveRealtime(){
     .on('postgres_changes', { event: '*', schema: 'public', table: 'live_state' }, bump)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'session_results' }, bump)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'race_sessions' }, bump)
-    .subscribe();
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'lineups' }, bump)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'live_timing' }, bump)
+    .subscribe(status => { liveUpdates.setRealtime(status); if (status === 'SUBSCRIBED' && document.getElementById('page-live').classList.contains('active')) loadLiveRacing(); });
 }
 ensureLiveRealtime();
-setInterval(() => { if(document.getElementById('page-live')?.classList.contains('active')) loadLiveRacing(); }, 15000);
 
 function toggleRule(header) {
   header.classList.toggle('open');
@@ -1063,9 +1071,9 @@ const pc = i => i===0?'pos p1':i===1?'pos p2':i===2?'pos p3':'pos';
 
 async function loadHome() {
   const [drivers, races, results] = await Promise.all([
-    get('drivers','select=*&order=wins.desc'),
+    get('public_drivers','select=*&order=wins.desc'),
     get('races','select=*&order=race_date.asc'),
-    get('results','select=*,drivers(name,number)&season=eq.2026&order=position.asc')
+    get('results','select=*,drivers:public_drivers(name,number)&season=eq.2026&order=position.asc')
   ]);
 
   document.getElementById('sc-drivers').textContent = drivers.length||'0';
@@ -1085,8 +1093,8 @@ async function loadHome() {
       winEl.innerHTML = `
         <div class="hp-lbl">Last Race Winner</div>
         ${numEl}
-        <div class="hp-name">${winDriver.name}</div>
-        <div class="hp-sub">R${last.round} — ${last.name} · ${lmo} ${ld.getDate()}</div>
+        <div class="hp-name">${escapeHtml(winDriver.name)}</div>
+        <div class="hp-sub">R${last.round} — ${escapeHtml(last.name)} · ${lmo} ${ld.getDate()}</div>
         <div class="hp-pts-badge">${winResult.points || 35} pts earned</div>`;
     } else {
       winEl.innerHTML = `<div class="hp-lbl">Last Race Winner</div><div style="color:var(--text2);font-size:14px;padding-top:12px">No results yet</div>`;
@@ -1100,11 +1108,9 @@ async function loadHome() {
   const nextEl = document.getElementById('home-nextrace');
   if (next) {
     const nd = new Date(next.race_date+'T12:00:00');
-    const today = new Date(); today.setHours(0,0,0,0);
-    const days = Math.ceil((nd - today) / 86400000);
     const nmo = nd.toLocaleString('en',{month:'long'}).toUpperCase();
-    const countdown = days > 0 ? `${days} days away` : days === 0 ? 'Race day!' : 'TBD';
-    const signups = await get('entries', `race_id=eq.${next.id}&status=neq.withdrawn&select=id`);
+    const countdown = raceCountdown(next.race_date);
+    const signups = await get('public_entries', `race_id=eq.${next.id}&status=neq.withdrawn&select=id`);
     const n = Array.isArray(signups) ? signups.length : 0;
     const signupLine = n === 0
       ? 'Be the first to sign up'
@@ -1113,7 +1119,7 @@ async function loadHome() {
       <div class="hp-lbl">Next Points Race</div>
       <div class="hp-round">Round ${next.round}</div>
       <div class="hp-date-big">${nmo} ${nd.getDate()}</div>
-      <div class="hp-race-name">${next.name}</div>
+      <div class="hp-race-name">${escapeHtml(next.name)}</div>
       <div class="hp-location">The Handle · Westville, IN</div>
       <div class="hp-countdown">${countdown}</div>
       <button class="hp-signup-btn" onclick="goToSignup('${next.id}')">Sign Up for This Race →</button>
@@ -1139,7 +1145,7 @@ async function loadHome() {
       const pts = sorted[0].pts;
       const wins = results.filter(r => r.driver_id === top.id && r.position === 1).length;
       document.getElementById('lbl-leader').style.display = 'block';
-      document.getElementById('home-leader').innerHTML = `<div class="leader-card"><div class="leader-num">${getDriverNumEl(top.name, top.number, 56)}</div><div><div class="leader-name">${top.name}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
+      document.getElementById('home-leader').innerHTML = `<div class="leader-card"><div class="leader-num">${getDriverNumEl(top.name, top.number, 56)}</div><div><div class="leader-name">${escapeHtml(top.name)}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
 
       const posClasses = ['p1','p2','p3','px','px'];
       const rowClasses = ['nsc-row-1','nsc-row-2','nsc-row-3','',''];
@@ -1153,7 +1159,7 @@ async function loadHome() {
           '<tr class="' + (rowClasses[i]||'') + '">' +
           '<td><span class="nsc-pos ' + posClasses[i] + '">' + (i+1) + '</span></td>' +
           '<td>' + getDriverNumEl(item.driver.name, item.driver.number, 28) + '</td>' +
-          '<td class="td-left"><span class="nsc-driver-name">' + item.driver.name + '</span></td>' +
+          '<td class="td-left"><span class="nsc-driver-name">' + escapeHtml(item.driver.name) + '</span></td>' +
           '<td><span class="nsc-pts">' + item.pts + '</span></td>' +
           '</tr>'
         ).join('') +
@@ -1163,7 +1169,7 @@ async function loadHome() {
 }
 
 async function loadDrivers() {
-  const d = await get('drivers','select=*');
+  const d = await get('public_drivers','select=*');
   // Order drivers by car number (numeric). Parsed client-side so the sort is
   // correct whether `number` is stored as text or int; ties/unparseable
   // numbers fall back to name order.
@@ -1201,11 +1207,11 @@ async function loadDrivers() {
                  font-weight:900;
                  color:#111;
                  line-height:1;
-               ">${digit}</span>
+               ">${escapeHtml(digit)}</span>
              </div>`).join('')}
          </div>`
       : getDriverNumEl(dr.name.trim(), dr.number, 48);
-    const nameEl = `<div class="d-name">${dr.name}</div>`;
+    const nameEl = `<div class="d-name">${escapeHtml(dr.name)}</div>`;
     return `<div class="driver-card" onclick="showDriverProfile('${dr.id}')">${numEl}<div>${nameEl}</div></div>`;
   }).join('');
 }
@@ -1225,7 +1231,7 @@ function switchSeason(season, btn) {
 async function loadPoints() {
   const season = currentSeason;
   const [drivers, results, races] = await Promise.all([
-    get('drivers','select=*'),
+    get('public_drivers','select=*'),
     get('results', 'select=*&season=eq.' + season),
     get('races', 'select=id,round,status,race_date&order=race_date.asc')
   ]);
@@ -1277,7 +1283,7 @@ async function loadPoints() {
     return '<tr class="' + rowClass + '">' +
       '<td><span class="nsc-pos ' + posClass + '">' + pos + '</span></td>' +
       '<td>' + getDriverNumEl(p.driver.name, p.driver.number, 28) + '</td>' +
-      '<td class="td-left"><span class="nsc-driver-name">' + p.driver.name + '</span></td>' +
+      '<td class="td-left"><span class="nsc-driver-name">' + escapeHtml(p.driver.name) + '</span></td>' +
       '<td><span class="nsc-pts">' + p.total + '</span></td>' +
       '<td>' + behind + '</td>' +
       '<td class="nsc-hide-sm"><span class="nsc-stat">' + p.starts + '</span></td>' +
@@ -1302,10 +1308,10 @@ function renderR(filter){
     const mo=d.toLocaleString('en',{month:'short'}).toUpperCase();
     const dy=d.getDate();
     const past=r.status==='past';
-    const row='<div class="race-row '+r.status+'"'+(past?' onclick="toggleRaceResults(\''+r.id+'\',this)"':'')+'>'+
+    const row='<div class="race-row '+(past?'past':'upcoming')+'"'+(past?' onclick="toggleRaceResults(\''+r.id+'\',this)"':'')+'>'+
       '<div class="r-date"><div class="r-month">'+mo+'</div><div class="r-day">'+dy+'</div></div>'+
-      '<div><div class="r-name">R'+r.round+' — '+r.name+'</div><div class="r-detail">The Handle · '+r.laps+' laps</div></div>'+
-      (past&&r.winner_name?'<div class="r-winner">'+r.winner_name+' wins</div>':'')+
+      '<div><div class="r-name">R'+r.round+' — '+escapeHtml(r.name)+'</div><div class="r-detail">The Handle · '+r.laps+' laps</div></div>'+
+      (past&&r.winner_name?'<div class="r-winner">'+escapeHtml(r.winner_name)+' wins</div>':'')+
       (!past?'<div class="r-pill">Upcoming</div><button class="r-signup-btn" onclick="event.stopPropagation();goToSignup(\''+r.id+'\')">Sign Up</button>':'')+
       (past?'<div class="r-chevron">▾</div>':'')+
       '</div>';
@@ -1332,7 +1338,7 @@ async function loadSignupRaces(){
   else {
     sel.innerHTML = '<option value="">Select a race night...</option>' + races.map(r=>{
       const d = new Date(r.race_date+'T12:00:00');
-      return `<option value="${r.id}">R${r.round} — ${r.name} (${d.toLocaleDateString('en',{month:'short',day:'numeric'})})</option>`;
+      return `<option value="${r.id}">R${r.round} — ${escapeHtml(r.name)} (${d.toLocaleDateString('en',{month:'short',day:'numeric'})})</option>`;
     }).join('');
     if(signupPreselectId){ sel.value = signupPreselectId; signupPreselectId = null; }
   }
@@ -1345,7 +1351,7 @@ let _signupDrivers = {};
 async function loadSignupDrivers(){
   const sel = document.getElementById('su-driver');
   if(!sel) return;
-  const drivers = await get('drivers','select=id,name,number&order=name.asc');
+  const drivers = await get('public_drivers','select=id,name,number&order=name.asc');
   _signupDrivers = {};
   drivers.forEach(d=>{ _signupDrivers[d.id] = d; });
   sel.innerHTML = '<option value="">Select your name...</option>' +
@@ -1370,8 +1376,9 @@ function onSignupDriverPick(){
 // Stays stable across repeat taps of "Sign Up" for the same attempt, so if a
 // dropped connection means the first POST actually landed but the response
 // never arrived, a retry (automatic or a re-tap) can't create a duplicate
-// sign-up — the server rejects the reused client_ref as already used.
+// sign-up — the RPC returns the original entry for a reused client_ref.
 let _signupRef = null;
+let _signupRefKey = null;
 async function submitSignup(){
   const msg = document.getElementById('signup-msg');
   const race_id = document.getElementById('su-race').value;
@@ -1396,8 +1403,14 @@ async function submitSignup(){
 
   // Name and number come straight from the selected driver record — sign-up is
   // restricted to registered drivers, so we don't trust free-typed values.
-  const name = _signupDrivers[selectedSignupDriverId].name;
-  const car_number = String(_signupDrivers[selectedSignupDriverId].number);
+  const driver_id = selectedSignupDriverId;
+  const name = _signupDrivers[driver_id].name;
+  const car_number = String(_signupDrivers[driver_id].number);
+  const refKey = JSON.stringify([race_id, driver_id, email, phone, signature]);
+  if (_signupRefKey !== refKey) {
+    _signupRef = null;
+    _signupRefKey = refKey;
+  }
 
   const btn = document.getElementById('su-submit-btn');
   btn.disabled = true; btn.textContent = 'Submitting...';
@@ -1406,14 +1419,16 @@ async function submitSignup(){
   // linked driver record, or (for unlinked/new entries) the car number or name.
   // A read failure here shouldn't block a legit sign-up, so it's best-effort.
   try {
-    const existing = await get('entries', `race_id=eq.${race_id}&status=neq.withdrawn&select=name,car_number,driver_id`);
+    const existing = await get('public_entries', `race_id=eq.${race_id}&status=neq.withdrawn&select=name,car_number,driver_id`);
     const norm = s => String(s||'').trim().toLowerCase();
     const dup = existing.find(e =>
-      (selectedSignupDriverId && e.driver_id === selectedSignupDriverId) ||
+      e.driver_id === driver_id ||
       (norm(e.car_number) && norm(e.car_number) === norm(car_number)) ||
       norm(e.name) === norm(name)
     );
-    if(dup){
+    // An uncertain prior POST must reach the RPC again, even if its entry is
+    // now visible: only the server can confirm that client_ref's outcome.
+    if(dup && !_signupRef){
       msg.innerHTML = `<div class="su-msg err">${escapeHtml(dup.name)} (#${escapeHtml(dup.car_number)}) is already signed up for this race night — you're all set, no need to sign up again. If this isn't you, use a different car number or check with the track.</div>`;
       btn.disabled = false; btn.textContent = 'Sign Up';
       return;
@@ -1422,15 +1437,14 @@ async function submitSignup(){
 
   if(!_signupRef) _signupRef = newRef();
   try {
-    await post('entries', {
-      race_id, name, car_number, email: email || null, phone: phone || null,
-      driver_id: selectedSignupDriverId || null,
-      waiver_signed_at: new Date().toISOString(), waiver_name: signature,
-      status: 'registered', client_ref: _signupRef
-    }, { isDuplicate: isDuplicateRef });
+    await post('rpc/submit_signup', {
+      p_race_id: race_id, p_driver_id: driver_id,
+      p_email: email || null, p_phone: phone || null,
+      p_signature: signature, p_client_ref: _signupRef
+    }, { attempts: 4 });
     _signupRef = null;
     document.getElementById('signup-form-wrap').style.display = 'none';
-    msg.innerHTML = `<div class="su-msg ok">You're signed up, ${name}! See you at the track — bring your paper waiver too.</div>`;
+    msg.innerHTML = `<div class="su-msg ok">You're signed up, ${escapeHtml(name)}! See you at the track — bring your paper waiver too.</div>`;
   } catch(e){
     msg.innerHTML = '<div class="su-msg err">Something went wrong submitting your sign-up. Please try again.</div>';
     btn.disabled = false; btn.textContent = 'Sign Up';
@@ -1438,7 +1452,7 @@ async function submitSignup(){
 }
 
 async function loadRecords(){
-  const recs=await get('lap_records','select=*,drivers(name,number),races(name,round)&order=lap_time_seconds.asc');
+  const recs=await get('lap_records','select=*,drivers:public_drivers(name,number),races(name,round)&order=lap_time_seconds.asc');
   const tb=document.getElementById('rec-body');
 
   // 13 Second Club — sub-14 official times
@@ -1458,11 +1472,11 @@ async function loadRecords(){
         <div class="club-rank ${isP1?'r1':''}">${isP1?'👑':i+1}</div>
         ${r.drivers?.name ? getDriverNumEl(r.drivers.name,r.drivers.number,36) : ''}
         <div class="club-info">
-          <div class="club-name${isP1?' p1':''}">${r.drivers?.name||'—'}</div>
+          <div class="club-name${isP1?' p1':''}">${escapeHtml(r.drivers?.name||'—')}</div>
           <div class="club-date">${d}</div>
         </div>
         <div class="club-right">
-          <div class="club-laptime${isP1?' p1':''}">${r.lap_time_display}</div>
+          <div class="club-laptime${isP1?' p1':''}">${escapeHtml(r.lap_time_display)}</div>
           <div class="club-badge">Official</div>
         </div>
       </div>`;
@@ -1472,14 +1486,21 @@ async function loadRecords(){
   if(!recs.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No lap times recorded yet</div></td></tr>';return;}
   tb.innerHTML=recs.map((r,i)=>{
     const d=r.set_date?new Date(r.set_date+'T12:00:00').toLocaleDateString('en',{month:'short',day:'numeric'}):'—';
-    return `<tr><td><span class="${pc(i)}">${i+1}</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">${r.drivers?.name?getDriverNumEl(r.drivers.name,r.drivers.number,32):''}<span>${r.drivers?.name||'—'}</span></span></td><td><span class="laptime">${r.lap_time_display}</span>${i===0?'<span class="rec-badge">Track Record</span>':''}</td><td>${d}</td><td>${r.races?`R${r.races.round}`:'—'}</td></tr>`;
+    return `<tr><td><span class="${pc(i)}">${i+1}</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">${r.drivers?.name?getDriverNumEl(r.drivers.name,r.drivers.number,32):''}<span>${escapeHtml(r.drivers?.name||'—')}</span></span></td><td><span class="laptime">${escapeHtml(r.lap_time_display)}</span>${i===0?'<span class="rec-badge">Track Record</span>':''}</td><td>${d}</td><td>${r.races?`R${r.races.round}`:'—'}</td></tr>`;
   }).join('');
 }
 
-const YT_CHANNEL_ID = 'UCFSvAzzD1GsDA7fO_19ROJA';
 const ytIdOf = u => {
-  const m = (u||'').match(/(?:youtu\.be\/|v=|\/shorts\/|\/embed\/)([A-Za-z0-9_-]{11})/) || (u||'').match(/([A-Za-z0-9_-]{11})/);
-  return m ? m[1] : null;
+  try {
+    const url = new URL(safeUrl(u));
+    const host = url.hostname.toLowerCase();
+    let id = null;
+    if (host === 'youtu.be') id = url.pathname.slice(1);
+    else if (['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(host)) {
+      id = url.pathname === '/watch' ? url.searchParams.get('v') : url.pathname.match(/^\/(?:shorts|embed)\/([^/]+)$/)?.[1];
+    }
+    return /^[A-Za-z0-9_-]{11}$/.test(id || '') ? id : null;
+  } catch(e) { return null; }
 };
 
 function renderVideos(vids){
@@ -1488,47 +1509,13 @@ function renderVideos(vids){
   if(!vids.length){g.innerHTML='<div class="empty">No videos yet — add some in admin</div>';return;}
   g.innerHTML=vids.map(v=>{
     const id=ytIdOf(v.youtube_url);
-    return `<div class="v-card" onclick="window.open('${v.youtube_url}','_blank')"><div class="v-thumb">${id?`<img src="https://img.youtube.com/vi/${id}/mqdefault.jpg" onerror="this.parentElement.innerHTML='<div class=v-play><svg viewBox=\\'0 0 24 24\\'><path d=\\'M8 5v14l11-7z\\'/></svg></div>'">`:`<div class="v-play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>`}</div><div class="v-info"><div class="v-title">${v.title}</div><div class="v-meta">${v.duration||''}</div></div></div>`;
+    return `<div class="v-card"${id ? ` onclick="window.open('https://www.youtube.com/watch?v=${id}','_blank','noopener,noreferrer')"` : ''}><div class="v-thumb">${id?`<img src="https://img.youtube.com/vi/${id}/mqdefault.jpg" onerror="this.hidden=true">`:`<div class="v-play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>`}</div><div class="v-info"><div class="v-title">${escapeHtml(v.title)}</div><div class="v-meta">${escapeHtml(v.duration||'')}</div></div></div>`;
   }).join('');
 }
 
-// Pull any new uploads from the @yardkartz channel and add them to the DB.
-// Returns true if anything new was inserted. Safe to fail silently.
-async function syncVideosFromYouTube(existing){
-  try{
-    const rss = `https://www.youtube.com/feeds/videos.xml?channel_id=${YT_CHANNEL_ID}`;
-    const res = await fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rss));
-    const data = await res.json();
-    if(!data || !data.items || !data.items.length) return false;
-    const have = new Set(existing.map(v=>ytIdOf(v.youtube_url)).filter(Boolean));
-    const fresh = [];
-    for(const it of data.items){
-      const vid = ytIdOf(it.link || it.guid || '');
-      if(!vid || have.has(vid)) continue;
-      have.add(vid);
-      const title = ((it.title||'').split(/\s+#/)[0].replace(/\s{2,}/g,' ').trim()) || 'YardKartz';
-      let created = null;
-      if(it.pubDate){ const d = new Date(it.pubDate.replace(' ','T')); if(!isNaN(d)) created = d.toISOString(); }
-      fresh.push({ title, youtube_url:'https://www.youtube.com/watch?v='+vid, duration:'', created_at:created });
-    }
-    if(!fresh.length) return false;
-    await fetch(`${SURL}/rest/v1/videos`, {
-      method:'POST',
-      headers:{'apikey':SKEY,'Authorization':`Bearer ${SKEY}`,'Content-Type':'application/json','Prefer':'resolution=ignore-duplicates,return=minimal'},
-      body:JSON.stringify(fresh)
-    });
-    return true;
-  }catch(e){ console.warn('video sync skipped:', e); return false; }
-}
-
 async function loadVideos(){
-  let vids=await get('videos','select=*&order=created_at.desc');
+  const vids=await get('videos','select=*&order=created_at.desc');
   renderVideos(vids);
-  // Background: catch any new channel uploads, then re-render if the list grew.
-  if(await syncVideosFromYouTube(vids)){
-    vids=await get('videos','select=*&order=created_at.desc');
-    renderVideos(vids);
-  }
 }
 
 
@@ -1676,7 +1663,7 @@ async function loadWeather() {
         <p style="margin-top:8px;color:var(--orange)">Using station (ground-level) pressure for DA calculation — not sea-level corrected — for maximum accuracy.</p>
       </div>`;
   } catch(err) {
-    el.innerHTML = `<div class="wx-loading">Could not load weather — check connection<br><span style="font-size:11px;opacity:0.5">${err.message}</span></div>`;
+    el.innerHTML = `<div class="wx-loading">Could not load weather — check connection<br><span style="font-size:11px;opacity:0.5">${escapeHtml(err.message)}</span></div>`;
   }
 }
 
@@ -1697,7 +1684,7 @@ async function toggleRaceResults(raceId, rowEl) {
     return;
   }
   resultsEl.querySelector('.race-results-inner').innerHTML = '<div class="rr-loading">Loading results...</div>';
-  const results = await get('results', 'select=*,drivers(name,number)&race_id=eq.'+raceId+'&order=position.asc');
+  const results = await get('results', 'select=*,drivers:public_drivers(name,number)&race_id=eq.'+raceId+'&order=position.asc');
   raceResultsCache[raceId] = results;
   renderRaceResultsInto(raceId, resultsEl.querySelector('.race-results-inner'));
 }
@@ -1707,7 +1694,7 @@ function renderRaceResultsInto(raceId, inner) {
   if (!results || !results.length) { inner.innerHTML = '<div class="rr-empty">No results recorded</div>'; return; }
   const rpc = p => p===1?'p1':p===2?'p2':p===3?'p3':'';
   inner.innerHTML = '<table class="rr-tbl"><thead><tr><th>Pos</th><th>Driver</th><th>Lap Time</th><th>Pts</th></tr></thead><tbody>'+
-    results.map(r=>'<tr><td><span class="rr-pos '+rpc(r.position)+'">'+r.position+'</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">'+(r.drivers?.name?getDriverNumEl(r.drivers.name,r.drivers.number,32):'')+'<span class="rr-name">'+(r.drivers?.name||'—')+'</span></span></td><td><span class="rr-time">'+(r.lap_time||'—')+'</span></td><td><span class="rr-pts">'+(r.points||'—')+'</span></td></tr>').join('')+
+    results.map(r=>'<tr><td><span class="rr-pos '+rpc(r.position)+'">'+r.position+'</span></td><td><span style="display:inline-flex;align-items:center;gap:6px;">'+(r.drivers?.name?getDriverNumEl(r.drivers.name,r.drivers.number,32):'')+'<span class="rr-name">'+escapeHtml(r.drivers?.name||'—')+'</span></span></td><td><span class="rr-time">'+escapeHtml(r.lap_time||'—')+'</span></td><td><span class="rr-pts">'+(r.points||'—')+'</span></td></tr>').join('')+
     '</tbody></table>';
 }
 
@@ -1734,7 +1721,7 @@ async function showDriverProfile(id) {
   document.getElementById('profile-content').innerHTML = '<div class="loading">Loading</div>';
 
   const [drivers, allResults, allRaces] = await Promise.all([
-    get('drivers', `select=*&id=eq.${id}`),
+    get('public_drivers', `select=*&id=eq.${id}`),
     get('results', `select=*,races(name,round,race_date)&driver_id=eq.${id}&order=position.asc`),
     get('races', 'select=*')
   ]);
@@ -1757,7 +1744,7 @@ async function showDriverProfile(id) {
   const s26pts = s26.reduce((s,r)=>s+(r.points||0),0);
 
   // All drivers points for standings position
-  const allDrivers = await get('drivers','select=*');
+  const allDrivers = await get('public_drivers','select=*');
   const allRes2 = await get('results','select=*&season=eq.2026');
   const ptsMap = {};
   allDrivers.forEach(d=>{ ptsMap[d.id]=0; });
@@ -1776,11 +1763,11 @@ async function showDriverProfile(id) {
   // Number graphic
   const numHtml = getDriverNumEl(dr.name.trim(), dr.number, 90);
 
-  const photoHtml = dr.photo_url
-    ? `<img class="prof-photo" src="${dr.photo_url}" alt="${dr.name}" onerror="this.outerHTML='<div class=prof-photo-placeholder>🪖</div>'">`
+  const photoHtml = safeUrl(dr.photo_url)
+    ? `<img class="prof-photo" src="${escapeHtml(safeUrl(dr.photo_url))}" alt="${escapeHtml(dr.name)}" onerror="this.outerHTML='<div class=prof-photo-placeholder>🪖</div>'">`
     : `<div class="prof-photo-placeholder">🪖</div>`;
 
-  const kv = (key, val) => val ? `<div class="prof-kv"><div class="kv-key">${key}</div><div class="kv-val">${val}</div></div>` : '';
+  const kv = (key, val) => val ? `<div class="prof-kv"><div class="kv-key">${key}</div><div class="kv-val">${escapeHtml(val)}</div></div>` : '';
   const stat = (n, l) => `<div class="prof-stat"><div class="prof-stat-n">${n}</div><div class="prof-stat-l">${l}</div></div>`;
   const posClass = p => p===1?'p1':p===2?'p2':p===3?'p3':'';
 
@@ -1803,16 +1790,16 @@ async function showDriverProfile(id) {
       <div class="prof-num-wrap">${numHtml}</div>
       ${photoHtml}
       <div class="prof-name-block">
-        <div class="prof-name">${dr.name}</div>
-        ${dr.nickname ? `<div class="prof-nickname">"${dr.nickname}"</div>` : ''}
+        <div class="prof-name">${escapeHtml(dr.name)}</div>
+        ${dr.nickname ? `<div class="prof-nickname">"${escapeHtml(dr.nickname)}"</div>` : ''}
         <div class="prof-meta">
-          ${[dr.hometown, calcAge(dr.birthday) ? `Age ${calcAge(dr.birthday)}` : '', dr.occupation].filter(Boolean).join(' · ')}
+          ${[dr.hometown, dr.age != null ? `Age ${dr.age}` : '', dr.occupation].filter(Boolean).map(escapeHtml).join(' · ')}
         </div>
       </div>
     </div>
 
-    ${dr.quote ? `<div class="prof-quote">"${dr.quote}"</div>` : ''}
-    ${dr.bio ? `<div class="sect-lbl" style="color:var(--orange);margin-bottom:8px">Straight from the Pits</div><div class="prof-bio">${dr.bio}</div>` : ''}
+    ${dr.quote ? `<div class="prof-quote">"${escapeHtml(dr.quote)}"</div>` : ''}
+    ${dr.bio ? `<div class="sect-lbl" style="color:var(--orange);margin-bottom:8px">Straight from the Pits</div><div class="prof-bio">${escapeHtml(dr.bio)}</div>` : ''}
 
     ${equipFields.length ? `<div class="prof-sect">Equipment</div><div class="prof-kv-grid">${equipFields.join('')}</div>` : ''}
     ${profileFields.length ? `<div class="prof-sect">Driver Profile</div><div class="prof-kv-grid">${profileFields.join('')}</div>` : ''}
@@ -1843,7 +1830,7 @@ async function showDriverProfile(id) {
       const d = r.races?.race_date ? new Date(r.races.race_date+'T12:00:00').toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'}) : '';
       return `<div class="prof-finish-row">
         <div class="prof-finish-pos ${posClass(r.position)}">${r.position}</div>
-        <div><div class="prof-finish-name">${r.races ? `R${r.races.round} — ${r.races.name}` : 'Race'}</div><div class="prof-finish-date">${d}${r.lap_time ? ' · ' + r.lap_time : ''}</div></div>
+        <div><div class="prof-finish-name">${r.races ? `R${r.races.round} — ${escapeHtml(r.races.name)}` : 'Race'}</div><div class="prof-finish-date">${d}${r.lap_time ? ' · ' + escapeHtml(r.lap_time) : ''}</div></div>
       </div>`;
     }).join('')}` : ''}
   `;
@@ -1870,11 +1857,8 @@ async function loadSponsors() {
   const classSponsors = sponsors.filter(s => tier(s) === 'class');
   const supporting = sponsors.filter(s => tier(s) === 'supporting' || tier(s) === 'support');
 
-  const imgSrc = s => s.logo_url && !s.logo_url.startsWith('http') ? s.logo_url : s.logo_url;
-  const logoOrName = (s, imgClass, nameClass) =>
-    s.logo_url
-      ? `<img src="${imgSrc(s)}" alt="${s.name}" style="max-width:100%;object-fit:contain;display:block;margin:0 auto;" onerror="this.outerHTML='<div class=\\'${nameClass}\\'>${s.name}</div>'">`
-      : `<div class="${nameClass}">${s.name}</div>`;
+  const logoOrName = (s, nameClass) =>
+    `${safeUrl(s.logo_url) ? `<img src="${escapeHtml(safeUrl(s.logo_url))}" alt="${escapeHtml(s.name)}" style="max-width:100%;object-fit:contain;display:block;margin:0 auto;" onerror="this.hidden=true">` : ''}<div class="${nameClass}">${escapeHtml(s.name)}</div>`;
 
   let html = '';
 
@@ -1882,8 +1866,7 @@ async function loadSponsors() {
     html += '<div class="sponsor-tier-lbl">Presenting Sponsor</div>';
     html += presenting.map(s => `
       <div class="sponsor-presenting">
-        ${logoOrName(s, '', 'sponsor-presenting-name')}
-        ${s.logo_url ? `<div class="sponsor-presenting-name">${s.name}</div>` : ''}
+        ${logoOrName(s, 'sponsor-presenting-name')}
       </div>`).join('');
   }
 
@@ -1892,8 +1875,7 @@ async function loadSponsors() {
     html += '<div class="sponsor-class-grid">' +
       classSponsors.map(s => `
         <div class="sponsor-class-card">
-          ${logoOrName(s, '', 'sponsor-class-name')}
-          ${s.logo_url ? `<div class="sponsor-class-name">${s.name}</div>` : ''}
+          ${logoOrName(s, 'sponsor-class-name')}
         </div>`).join('') +
       '</div>';
   }
@@ -1903,8 +1885,7 @@ async function loadSponsors() {
     html += '<div class="sponsor-support-grid">' +
       supporting.map(s => `
         <div class="sponsor-support-card">
-          ${logoOrName(s, '', 'sponsor-support-name')}
-          ${s.logo_url ? `<div class="sponsor-support-name">${s.name}</div>` : ''}
+          ${logoOrName(s, 'sponsor-support-name')}
         </div>`).join('') +
       '</div>';
   }
@@ -1929,9 +1910,8 @@ async function loadLatestVideo() {
     const data = await res.json();
     if (data.status !== 'ok' || !data.items?.length) throw new Error('no items');
     const item = data.items[0];
-    const vidMatch = item.link.match(/[?&]v=([^&]+)/);
-    if (!vidMatch) throw new Error('no video id');
-    const videoId = vidMatch[1];
+    const videoId = ytIdOf(item.link);
+    if (!videoId) throw new Error('no video id');
     el.style.display = '';
     el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
     if (titleEl && item.title) titleEl.textContent = item.title;
@@ -1943,28 +1923,46 @@ async function loadLatestVideo() {
 }
 
 // ANNOUNCEMENTS
+let announcementRead = null, visibleAnnouncement = null, dismissedAnnouncement = '';
 async function loadAnnouncement() {
-  try {
-    const anns = await get('announcements', 'select=*&active=eq.true&order=created_at.desc&limit=1');
-    if (!anns || !anns.length) return;
-    const ann = anns[0];
-    if (sessionStorage.getItem(`ann_dismissed_${ann.id}`)) return;
-    const diff = Date.now() - new Date(ann.created_at).getTime();
-    const mins = Math.floor(diff / 60000);
-    const ago = mins < 2 ? 'just now' : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.floor(mins/60)}h ago` : `${Math.floor(mins/1440)}d ago`;
-    const typeClass = `ann-${ann.type.toLowerCase().replace(/\s+/g,'_')}`;
-    const banner = document.getElementById('announce-banner');
-    banner.className = `show ${typeClass}`;
-    banner.innerHTML = `<span class="announce-msg">${ann.message}</span><span class="announce-time">Posted ${ago}</span><button class="announce-close" onclick="dismissAnnouncement('${ann.id}')" aria-label="Dismiss">&#215;</button>`;
-  } catch(e) {}
+  if (announcementRead) return announcementRead;
+  if (document.hidden || navigator.onLine === false) return;
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
+  announcementRead = (async () => {
+    try {
+      const [ann] = await get('announcements', 'select=id,message,type,active,created_at,updated_at&active=eq.true&order=updated_at.desc,id.desc&limit=1', { signal: controller.signal });
+      const banner = document.getElementById('announce-banner');
+      if (!ann) { visibleAnnouncement = null; banner.className = ''; banner.innerHTML = ''; return; }
+      const version = JSON.stringify([ann.id,ann.updated_at,ann.message,ann.type]);
+      let dismissed = dismissedAnnouncement === version;
+      try { dismissed ||= sessionStorage.getItem('ann_dismissed_' + ann.id) === version; } catch {}
+      if (dismissed) { visibleAnnouncement = null; banner.className = ''; banner.innerHTML = ''; return; }
+      if (visibleAnnouncement?.version !== version) {
+        banner.className = 'show ' + (Object.hasOwn(ANNOUNCEMENT_CLASS,ann.type) ? ANNOUNCEMENT_CLASS[ann.type] : ANNOUNCEMENT_CLASS.General);
+        banner.innerHTML = `<div class="announce-copy"><strong class="announce-type">${escapeHtml(ann.type || 'General')}</strong><span class="announce-msg">${escapeHtml(ann.message)}</span></div><span class="announce-time"></span><button class="announce-close" onclick="dismissAnnouncement()" aria-label="Dismiss this version of the announcement">&#215;</button>`;
+      }
+      visibleAnnouncement = { ...ann,version };
+      banner.querySelector('.announce-time').textContent = 'Updated ' + announcementAge(ann.updated_at || ann.created_at);
+    } catch {
+      if (visibleAnnouncement) document.querySelector('#announce-banner .announce-time').textContent = 'Updates unavailable — last message kept. Check again when connected.';
+    } finally { clearTimeout(timer); announcementRead = null; }
+  })();
+  return announcementRead;
 }
 
-function dismissAnnouncement(id) {
-  sessionStorage.setItem(`ann_dismissed_${id}`, '1');
+function dismissAnnouncement() {
+  if (!visibleAnnouncement) return;
+  dismissedAnnouncement = visibleAnnouncement.version;
+  try { sessionStorage.setItem('ann_dismissed_' + visibleAnnouncement.id, dismissedAnnouncement); } catch {}
+  visibleAnnouncement = null;
   const b = document.getElementById('announce-banner');
   b.className = ''; b.innerHTML = '';
 }
 
+setInterval(loadAnnouncement, 30000);
+window.addEventListener('online', loadAnnouncement);
+window.addEventListener('focus', loadAnnouncement);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAnnouncement(); });
 loadAnnouncement();
 loadHome(); loadDrivers(); loadPoints(); loadSchedule(); loadRecords(); loadVideos(); loadLatestVideo();
 restorePage();

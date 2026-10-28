@@ -32,7 +32,7 @@
   /* HEADER */
   .site-header { background: rgba(10,10,10,0.95); border-bottom: 1px solid var(--line); padding: 0 20px; position: relative; }
   .header-kart { display: none; }
-  .header-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 14px; padding: 12px 0 10px; position: relative; z-index: 1; }
+  .header-inner { max-width: 720px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px 0 10px; position: relative; z-index: 1; }
   .logo-badge { display: none; }
   .header-logo { height: 48px; object-fit: contain; flex-shrink: 0; }
   .header-league { font-family: 'Archivo', sans-serif; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2.5px; color: var(--red); margin-bottom: 2px; }
@@ -71,17 +71,25 @@
   .radio-option label:hover { background: var(--panel-2); border-color: var(--red); color: var(--white); transform: none; box-shadow: none; }
 
   /* PHOTO UPLOAD */
-  .photo-upload-area { border: 1px dashed var(--line); border-radius: 14px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--panel-2); position: relative; }
-  .photo-upload-area:hover, .photo-upload-area.dragover { border-color: var(--red); background: var(--panel-2); }
-  .photo-upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-  .upload-icon { font-size: 32px; margin-bottom: 8px; }
-  .upload-label { font-family: 'Archivo', sans-serif; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
-  .upload-hint { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 700; }
-  .photo-preview { display: none; width: 100%; max-width: 200px; margin: 0 auto; border-radius: 10px; overflow: hidden; }
-  .photo-preview img { width: 100%; height: 180px; object-fit: cover; object-position: top; border-radius: 8px; border: 1px solid var(--line); }
-  .photo-preview .change-photo { font-family: 'Archivo', sans-serif; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-top: 8px; cursor: pointer; }
-  .upload-progress { height: 5px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; margin-top: 10px; overflow: hidden; display: none; }
-  .upload-progress-bar { height: 100%; background: var(--red); border-radius: 2px; width: 0%; transition: width 0.3s; }
+  .photo-upload-area { border:1px dashed var(--line); border-radius:14px; padding:18px; background:var(--panel-2); }
+  .photo-upload-area.dragover { border-color:var(--yellow); }
+  .photo-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .photo-actions button, .photo-picker { min-height:44px; border:1px solid var(--line); border-radius:8px; padding:12px; background:var(--panel-2); color:var(--white); font:inherit; font-size:14px; font-weight:800; cursor:pointer; text-align:center; }
+  .photo-picker { display:block; background:var(--red); margin-top:14px; }
+  .photo-file { position:absolute; width:1px; height:1px; opacity:0; }
+  .photo-file:focus-visible + .photo-picker, #photo-card button:focus-visible, #photo-card a:focus-visible { outline:2px solid var(--yellow); outline-offset:3px; }
+  #photo-card button:disabled, .photo-file:disabled + .photo-picker { opacity:0.5; cursor:not-allowed; }
+  #photo-card [hidden] { display:none !important; }
+  #photo-save:not(:disabled) { background:var(--red); }
+  .photo-preview { text-align:center; }
+  .photo-preview img { display:block; width:100%; max-width:240px; height:200px; object-fit:contain; margin:0 auto 12px; border-radius:10px; }
+  .photo-preview a { display:inline-flex; min-height:44px; align-items:center; }
+  .photo-note { font-size:13px; color:var(--muted); line-height:1.6; overflow-wrap:anywhere; }
+  #photo-message { color:var(--yellow); margin-top:14px; }
+  #photo-meta { margin-top:10px; }
+  #upload-progress { width:100%; height:8px; margin-top:14px; accent-color:var(--red); }
+  .photo-empty { padding:28px 8px; text-align:center; }
+  #photo-card a { color:var(--yellow); }
 
   /* DRIVER SELECT */
   .driver-select-hero { background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--red); border-radius: 16px; padding: 22px 24px; margin-bottom: 16px; box-shadow: none; }
@@ -111,6 +119,8 @@
 
   @media(max-width:600px) {
     .form-grid { grid-template-columns: 1fr; }
+    .photo-actions { grid-template-columns:1fr; }
+    input, select, textarea { min-height:44px; font-size:16px !important; }
     .form-group.full { grid-column: 1; }
     .radio-group { flex-direction: column; }
     .radio-option label { width: 100%; }
@@ -129,24 +139,55 @@
       <div class="header-sub">The Handle · Westville, IN</div>
     </div>
     <div class="header-badge">Driver Setup</div>
+    <button id="staff-signout" type="button" hidden>Sign out</button>
   </div>
 </header>
 <div class="checkered-strip"></div>
 
 <main class="page-main">
 
+  <section id="staff-auth" aria-label="Staff sign-in"></section>
+  <div id="staff-content" hidden>
   <div id="form-screen">
     <div class="page-title">Driver Profile Setup</div>
-    <p class="page-sub">Fill out your profile — it'll show up on the Drivers page on the YardKartz site. Select your name to get started.</p>
+    <p class="page-sub">Staff editor — select a driver to update their public YardKartz profile. Drivers should contact the track for profile changes.</p>
 
     <div class="driver-select-hero">
-      <label for="driver-select">Who are you?</label>
+      <label for="driver-select">Select driver</label>
       <select id="driver-select" onchange="onDriverSelect()">
-        <option value="">Select your name...</option>
+        <option value="">Choose a driver...</option>
       </select>
+      <p id="driver-load-message" class="photo-note" role="status"></p>
     </div>
 
     <div class="form-sections" id="form-sections">
+
+      <div class="card" id="photo-card">
+        <div class="card-title" id="photo-title" style="overflow-wrap:anywhere">Driver Photo</div>
+        <p class="photo-note">Choose a kart, helmet or driver photo. Photo saves are separate from profile details below. Existing photos stay live until a new photo is confirmed.</p>
+        <div class="photo-upload-area" id="upload-area">
+          <div id="upload-placeholder" class="photo-empty">No custom photo. The site will use its default driver artwork.</div>
+          <div class="photo-preview" id="photo-preview" hidden>
+            <img id="preview-img" alt="Saved driver photo" referrerpolicy="no-referrer">
+            <p id="photo-preview-label" class="photo-note"></p>
+            <a id="photo-full-preview" class="photo-note" target="_blank" rel="noopener noreferrer">View full image</a>
+          </div>
+          <p id="photo-meta" class="photo-note"></p>
+          <input class="photo-file" type="file" id="f-photo" accept="image/jpeg,image/png,image/webp" aria-label="Choose a driver photo" aria-describedby="photo-help" onchange="onPhotoSelected(this)">
+          <label class="photo-picker" for="f-photo">Choose / replace photo</label>
+          <p id="photo-help" class="photo-note">JPG, PNG or WEBP · Max 5 MB. Drop one file here or choose a photo. HEIC: export as JPG. Images fit within 1600 px; original metadata is stripped and the full frame is kept.</p>
+        </div>
+        <details id="photo-saved-review" hidden style="margin-top:14px"><summary>Current saved photo — compare with your selection</summary><div class="photo-preview"><img id="saved-photo-img" alt="Current saved driver photo" referrerpolicy="no-referrer" hidden></div><p id="saved-photo-note" class="photo-note"></p></details>
+        <progress id="upload-progress" aria-label="Photo operation in progress" hidden></progress>
+        <p id="photo-message" class="photo-note" role="status" aria-live="polite">Choose a photo to begin.</p>
+        <div class="photo-actions">
+          <button id="photo-save" type="button" onclick="savePhoto()" disabled>Save photo</button>
+          <button id="photo-discard" type="button" onclick="discardPhoto()" disabled>Discard selection</button>
+          <button id="photo-remove" type="button" onclick="removePhoto()" disabled>Remove custom photo</button>
+          <button id="photo-refresh" type="button" onclick="refreshPhoto()">Refresh saved photo</button>
+        </div>
+        <p class="photo-note" style="margin-top:14px">Removing a custom photo restores default artwork; it does not delete stored files. <a href="/admin/">Open the full admin profile editor</a> for conflict-aware text editing.</p>
+      </div>
 
       <!-- IDENTITY -->
       <div class="card">
@@ -254,30 +295,10 @@
         </div>
       </div>
 
-      <!-- PHOTO -->
-      <div class="card">
-        <div class="card-title">Profile Photo</div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">Upload a photo that'll appear on your driver card. A good kart photo or helmet shot works great. Square or portrait crops look best.</p>
-        <div class="photo-upload-area" id="upload-area">
-          <input type="file" id="f-photo" accept="image/jpeg,image/png,image/webp" onchange="onPhotoSelected(this)">
-          <div id="upload-placeholder">
-            <div class="upload-icon">📸</div>
-            <div class="upload-label">Tap to choose a photo</div>
-            <div class="upload-hint">JPG, PNG, or WEBP · Max 5MB</div>
-          </div>
-          <div class="photo-preview" id="photo-preview">
-            <img id="preview-img" src="" alt="Preview">
-            <div class="change-photo">↑ Tap to change</div>
-          </div>
-        </div>
-        <div class="upload-progress" id="upload-progress">
-          <div class="upload-progress-bar" id="upload-bar"></div>
-        </div>
-      </div>
-
+      <p class="photo-note">This button saves profile details only. Save or discard a selected photo above first.</p>
       <button class="submit-btn" id="submit-btn" onclick="submitProfile()">
         <div class="submit-spinner" id="submit-spinner"></div>
-        <span id="submit-label">Save My Profile</span>
+        <span id="submit-label">Save profile details</span>
       </button>
 
     </div><!-- end form-sections -->
@@ -294,22 +315,29 @@
     </div>
   </div>
 
+  </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/admin-auth.js"></script>
+<script src="/race-night-client.js"></script>
 <script>
   const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
   const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
 
   let selectedDriver = null;
   let allDrivers = [];
+  let driverLoading = false, profileSaving = false;
+  const photo = { candidate: null, remove: false, request: null, preparing: false, busy: false, generation: 0, message: '', review: false };
+  const staffAuth = window.AdminAuth.create({ url: SURL, key: SKEY, onAuthorized: init });
+  const db = window.RaceNight.createClient(SURL, SKEY, { getAccessToken: staffAuth.getAccessToken });
 
   async function init() {
-    const res = await fetch(`${SURL}/rest/v1/drivers?select=*&order=name.asc`, {
-      headers: { 'apikey': SKEY, 'Authorization': `Bearer ${SKEY}` }
-    });
-    allDrivers = await res.json();
+    try {
+    allDrivers = await db.get('drivers', 'select=id,name,number&order=name.asc');
 
     const sel = document.getElementById('driver-select');
+    sel.innerHTML = '<option value="">Select a driver...</option>';
     allDrivers.forEach(d => {
       const opt = document.createElement('option');
       opt.value = d.id;
@@ -318,23 +346,36 @@
     });
 
     const rival = document.getElementById('f-biggest_rival');
+    rival.innerHTML = '<option value="">Select a rival...</option>';
     allDrivers.forEach(d => {
       const opt = document.createElement('option');
       opt.value = d.name;
       opt.textContent = `${d.name} (#${d.number})`;
       rival.appendChild(opt);
     });
+    document.querySelectorAll('.form-group > label').forEach(label => { if (label.nextElementSibling?.id) label.htmlFor = label.nextElementSibling.id; });
+    document.getElementById('driver-load-message').textContent = `${allDrivers.length} drivers loaded. Choose a driver to manage their photo.`;
+    } catch (e) { document.getElementById('driver-load-message').textContent = 'Could not load drivers. Reload to retry. ' + e.message; }
   }
 
-  function onDriverSelect() {
-    const id = document.getElementById('driver-select').value;
+  async function onDriverSelect() {
+    const select = document.getElementById('driver-select'), id = select.value;
+    if (photo.busy || photo.preparing || driverLoading || profileSaving || (photoDraft() && !confirm('Leave this photo draft? An unconfirmed save may already be stored.'))) { select.value = selectedDriver?.id || ''; return; }
     if (!id) {
+      clearPhotoCandidate(); photo.remove = false; photo.request = null; photo.review = false;
       document.getElementById('form-sections').style.display = 'none';
       selectedDriver = null;
+      renderPhoto();
       return;
     }
-    selectedDriver = allDrivers.find(d => d.id === id);
-    if (!selectedDriver) return;
+    driverLoading = true; renderPhoto();
+    document.getElementById('driver-load-message').textContent = 'Loading saved driver…';
+    try {
+    const rows = await db.get('drivers', `select=*&id=eq.${encodeURIComponent(id)}`);
+    if (!rows[0]) throw new Error('Driver no longer exists.');
+    selectedDriver = rows[0]; select.value = id;
+    clearPhotoCandidate(); photo.remove = false; photo.request = null; photo.review = false; photo.generation++;
+    document.getElementById('f-photo').value = '';
 
     document.getElementById('f-name').value = selectedDriver.name;
     document.getElementById('f-nickname').value = selectedDriver.nickname || '';
@@ -350,96 +391,188 @@
     document.getElementById('f-bio').value = selectedDriver.bio || '';
     document.getElementById('f-quote').value = selectedDriver.quote || '';
 
-    if (selectedDriver.fav_condition) {
-      const radio = document.querySelector(`input[name="fav_condition"][value="${selectedDriver.fav_condition}"]`);
-      if (radio) radio.checked = true;
-    }
-    if (selectedDriver.racing_style) {
-      const radio = document.querySelector(`input[name="racing_style"][value="${selectedDriver.racing_style}"]`);
-      if (radio) radio.checked = true;
-    }
-
-    if (selectedDriver.photo_url) {
-      document.getElementById('preview-img').src = selectedDriver.photo_url;
-      document.getElementById('upload-placeholder').style.display = 'none';
-      document.getElementById('photo-preview').style.display = 'block';
-    } else {
-      document.getElementById('upload-placeholder').style.display = 'block';
-      document.getElementById('photo-preview').style.display = 'none';
-    }
+    for (const field of ['fav_condition', 'racing_style']) document.querySelectorAll(`input[name="${field}"]`).forEach(input => input.checked = input.value === selectedDriver[field]);
 
     document.getElementById('form-sections').style.display = 'block';
-    setTimeout(() => document.getElementById('form-sections').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    photo.message = `Saved photo loaded for #${selectedDriver.number} ${selectedDriver.name}.`;
+    document.getElementById('driver-load-message').textContent = `Editing #${selectedDriver.number} ${selectedDriver.name}.`;
+    } catch (e) { select.value = selectedDriver?.id || ''; document.getElementById('driver-load-message').textContent = 'Could not load driver; previous selection kept. ' + e.message; }
+    finally { driverLoading = false; renderPhoto(); }
   }
 
-  function onPhotoSelected(input) {
-    const file = input.files[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Photo must be under 5MB');
-      input.value = '';
-      return;
+  function photoDraft() { return !!(photo.candidate || photo.remove || photo.request); }
+  function clearPhotoCandidate() {
+    if (photo.candidate) URL.revokeObjectURL(photo.candidate.preview);
+    photo.candidate = null;
+  }
+  function photoUrl(value) {
+    const url = window.RaceNight.safeUrl(value);
+    if (!url) return '';
+    const parsed = new URL(url);
+    return parsed.username || parsed.password ? '' : url;
+  }
+  function renderPhoto() {
+    const busy = photo.busy || photo.preparing || driverLoading || profileSaving;
+    document.getElementById('photo-title').textContent = selectedDriver ? `Driver photo · #${selectedDriver.number} ${selectedDriver.name}` : 'Driver Photo';
+    document.getElementById('driver-select').disabled = busy;
+    document.getElementById('f-photo').disabled = busy || !!photo.request || !selectedDriver;
+    document.getElementById('photo-save').disabled = busy || !selectedDriver || !photoDraft();
+    document.getElementById('photo-save').textContent = photo.busy ? 'Saving photo…' : photo.request ? 'Verify / retry save' : photo.remove ? 'Confirm removal' : 'Save photo';
+    document.getElementById('photo-discard').disabled = busy || !!photo.request || !photoDraft();
+    document.getElementById('photo-remove').disabled = busy || !!photo.request || !!photo.candidate || !selectedDriver?.photo_url || photo.remove;
+    document.getElementById('photo-refresh').disabled = busy || !selectedDriver;
+    document.getElementById('submit-btn').disabled = busy || photoDraft();
+    document.getElementById('upload-progress').hidden = !(photo.busy || photo.preparing);
+    document.getElementById('photo-card').setAttribute('aria-busy', String(photo.busy || photo.preparing));
+    const source = photo.candidate?.preview || (photo.remove ? '' : photoUrl(selectedDriver?.photo_url));
+    const image = document.getElementById('preview-img');
+    document.getElementById('photo-preview').hidden = !source;
+    document.getElementById('upload-placeholder').hidden = !!source;
+    document.getElementById('photo-full-preview').href = source || '';
+    if (source && image.getAttribute('src') !== source) { image.hidden = false; image.src = source; }
+    image.alt = photo.candidate ? 'New driver photo — not saved yet' : 'Saved driver photo';
+    document.getElementById('photo-preview-label').textContent = source && image.hidden ? 'Photo preview unavailable. You can still replace or remove this photo.' : photo.candidate ? 'New selection · Not published yet' : 'Current saved photo';
+    document.getElementById('upload-placeholder').textContent = photo.remove ? 'Custom photo will be removed after confirmation. Default driver artwork will be restored.' : selectedDriver?.photo_url ? 'Saved photo could not be displayed. You can replace or remove it.' : 'No custom photo. The site will use its default driver artwork.';
+    const c = photo.candidate;
+    document.getElementById('photo-meta').textContent = c ? `${c.name} · ${c.width} × ${c.height} px · ${Math.ceil(c.blob.size / 1024)} KB ready to upload (original ${Math.ceil(c.originalSize / 1024)} KB).` : '';
+    document.getElementById('photo-message').textContent = photo.message;
+    document.getElementById('photo-saved-review').hidden = !photo.review;
+    document.getElementById('photo-saved-review').open = photo.review;
+    if (photo.review) {
+      const saved = photoUrl(selectedDriver?.photo_url), savedImage = document.getElementById('saved-photo-img');
+      savedImage.hidden = !saved;
+      if (saved && savedImage.getAttribute('src') !== saved) savedImage.src = saved;
+      document.getElementById('saved-photo-note').textContent = selectedDriver?.photo_url ? 'This is the currently saved photo. Your unsaved selection above is kept.' : 'No custom photo is currently saved. Your unsaved selection above is kept.';
     }
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById('preview-img').src = e.target.result;
-      document.getElementById('upload-placeholder').style.display = 'none';
-      document.getElementById('photo-preview').style.display = 'block';
-    };
-    reader.readAsDataURL(file);
   }
 
-  // Drag-over highlight
+  async function onPhotoSelected(input) {
+    const file = input.files[0]; input.value = '';
+    if (file) await preparePhoto(file);
+  }
+  async function preparePhoto(file) {
+    if (!selectedDriver || photo.busy || photo.request || driverLoading || profileSaving) return;
+    const generation = ++photo.generation;
+    photo.preparing = true; photo.message = 'Checking and optimizing photo…'; renderPhoto();
+    let bitmap;
+    try {
+      if (!['image/jpeg','image/png','image/webp'].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) throw new Error('Choose a JPG, PNG or WEBP photo up to 5 MB. Export HEIC as JPG first.');
+      const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+      const jpeg = header[0] === 255 && header[1] === 216 && header[2] === 255;
+      const png = [137,80,78,71,13,10,26,10].every((b,i) => header[i] === b);
+      const webp = String.fromCharCode(...header.slice(0,4)) === 'RIFF' && String.fromCharCode(...header.slice(8,12)) === 'WEBP';
+      if (!({ 'image/jpeg': jpeg, 'image/png': png, 'image/webp': webp })[file.type]) throw new Error('This file does not match its image type. Choose a valid photo.');
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > 25000000 || Math.max(bitmap.width,bitmap.height) > 8000) throw new Error('Photo is too large to process safely. Export a version under 25 megapixels and 8000 px per side.');
+      const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height)), canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.85));
+      if (!blob || !['image/webp','image/png'].includes(blob.type) || blob.size > 5 * 1024 * 1024) throw new Error('Could not prepare this photo. Try a smaller JPG, PNG or WEBP.');
+      if (generation !== photo.generation) return;
+      clearPhotoCandidate(); photo.remove = false; photo.review = false;
+      const ref = crypto.randomUUID(), ext = blob.type === 'image/webp' ? 'webp' : 'png';
+      photo.candidate = { blob, preview: URL.createObjectURL(blob), name: file.name, originalSize: file.size, width: canvas.width, height: canvas.height, path: `${selectedDriver.id}/${ref}.${ext}`, attempted: false, uploaded: false };
+      photo.message = 'Photo ready. Review the full image, then Save photo. No profile details will be changed.';
+    } catch (e) { if (generation === photo.generation) photo.message = e.message + ' Previous photo/selection kept.'; }
+    finally { bitmap?.close(); if (generation === photo.generation) { photo.preparing = false; renderPhoto(); } }
+  }
+
+  function discardPhoto() {
+    if (photo.busy || photo.preparing || photo.request || driverLoading || profileSaving) return;
+    clearPhotoCandidate(); photo.remove = false; photo.review = false;
+    photo.message = 'Selection discarded. Saved photo unchanged.'; renderPhoto();
+  }
+  function removePhoto() {
+    if (photo.busy || photo.preparing || photo.request || photo.candidate || driverLoading || profileSaving || !selectedDriver?.photo_url) return;
+    clearPhotoCandidate(); photo.remove = true; photo.review = false;
+    photo.message = 'Removal is a draft. Confirm removal to restore default artwork; stored files are kept.'; renderPhoto();
+  }
+  async function refreshPhoto() {
+    if (!selectedDriver || photo.busy || photo.preparing || driverLoading || profileSaving) return;
+    photo.busy = true; photo.message = 'Checking saved photo; keeping your selection…'; renderPhoto();
+    try {
+      const rows = await db.get('drivers', `select=id,photo_url&id=eq.${encodeURIComponent(selectedDriver.id)}`);
+      if (!rows[0]) throw new Error('Driver no longer exists.');
+      selectedDriver.photo_url = rows[0].photo_url;
+      const confirmed = photo.request && photo.request.p_photo_url === (rows[0].photo_url ?? null);
+      photo.request = null;
+      if (confirmed) { clearPhotoCandidate(); photo.remove = false; }
+      photo.review = photoDraft();
+      photo.message = confirmed ? 'Saved photo matches your request — confirmed.' : 'Saved photo checked. Your draft is kept; compare the current saved photo before confirming a new change.';
+    } catch (e) { photo.message = 'Refresh failed; photo draft and pending request kept. ' + e.message; }
+    finally { photo.busy = false; renderPhoto(); }
+  }
+
+  // A file belongs to the selected driver, never to a browser file input.
   const ua = document.getElementById('upload-area');
   ua.addEventListener('dragover', e => { e.preventDefault(); ua.classList.add('dragover'); });
   ua.addEventListener('dragleave', () => ua.classList.remove('dragover'));
   ua.addEventListener('drop', e => {
-    e.preventDefault();
-    ua.classList.remove('dragover');
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      document.getElementById('f-photo').files = dt.files;
-      onPhotoSelected(document.getElementById('f-photo'));
-    }
+    e.preventDefault(); ua.classList.remove('dragover');
+    if (e.dataTransfer.files.length !== 1) { photo.message = 'Choose one photo at a time. Previous selection kept.'; renderPhoto(); return; }
+    preparePhoto(e.dataTransfer.files[0]);
   });
+  document.getElementById('preview-img').onerror = () => { document.getElementById('preview-img').hidden = true; document.getElementById('photo-preview-label').textContent = 'Photo preview unavailable. Saved photo link is unchanged.'; };
+  window.addEventListener('beforeunload', event => { if (photoDraft() || photo.preparing) { event.preventDefault(); event.returnValue = ''; } });
 
-  async function uploadPhoto(file, driverId) {
-    const ext = file.name.split('.').pop().toLowerCase() || 'jpg';
-    const filename = `${driverId}_${Date.now()}.${ext}`;
-    document.getElementById('upload-progress').style.display = 'block';
-    document.getElementById('upload-bar').style.width = '30%';
-
-    const res = await fetch(`${SURL}/storage/v1/object/driver-photos/${filename}`, {
-      method: 'POST',
-      headers: {
-        'apikey': SKEY,
-        'Authorization': `Bearer ${SKEY}`,
-        'Content-Type': file.type || 'image/jpeg',
-        'x-upsert': 'true'
-      },
-      body: file
-    });
-
-    document.getElementById('upload-bar').style.width = '90%';
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Photo upload failed');
+  async function photoFetch(url, options) {
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      return { ok: response.ok, status: response.status, bytes: await response.arrayBuffer() };
     }
-
-    document.getElementById('upload-bar').style.width = '100%';
-    return `${SURL}/storage/v1/object/public/driver-photos/${filename}`;
+    finally { clearTimeout(timer); }
+  }
+  async function verifyUploadedPhoto(candidate) {
+    const url = `${SURL}/storage/v1/object/public/driver-photos/${candidate.path}?verify=${Date.now()}`;
+    const response = await photoFetch(url, { cache: 'no-store' });
+    if (response.status === 404) return false;
+    if (!response.ok) throw new Error('Could not verify the uploaded file.');
+    const saved = new Uint8Array(response.bytes), expected = new Uint8Array(await candidate.blob.arrayBuffer());
+    if (saved.length !== expected.length || saved.some((byte,i) => byte !== expected[i])) throw new Error('Stored file differs from your selection. Discard this selection and choose the photo again.');
+    return true;
+  }
+  async function uploadPhoto(candidate) {
+    const token = await staffAuth.getAccessToken();
+    if (candidate.uploaded) return;
+    if (candidate.attempted && await verifyUploadedPhoto(candidate)) { candidate.uploaded = true; return; }
+    candidate.attempted = true;
+    try {
+      const response = await photoFetch(`${SURL}/storage/v1/object/driver-photos/${candidate.path}`, {
+        method: 'POST', headers: { apikey: SKEY, Authorization: `Bearer ${token}`, 'Content-Type': candidate.blob.type, 'x-upsert': 'false' }, body: candidate.blob
+      });
+      if (!response.ok) throw new Error('Storage rejected the upload (' + response.status + ').');
+      candidate.uploaded = true;
+    } catch (e) {
+      if (await verifyUploadedPhoto(candidate)) { candidate.uploaded = true; return; }
+      throw e;
+    }
+  }
+  async function savePhoto() {
+    if (!selectedDriver || photo.busy || photo.preparing || driverLoading || profileSaving || !photoDraft()) return;
+    if (!photo.request && !confirm(`${photo.remove ? 'Remove the custom photo for' : 'Save this photo for'} #${selectedDriver.number} ${selectedDriver.name}? Profile text, birthday, signups, results and timing remain unchanged.`)) return;
+    photo.busy = true; photo.message = photo.request ? 'Verifying the original save…' : photo.remove ? 'Removing custom photo link…' : 'Uploading optimized photo…'; renderPhoto();
+    try {
+      if (!photo.request) {
+        if (!photo.remove) await uploadPhoto(photo.candidate);
+        photo.request = { p_driver_id: selectedDriver.id, p_expected: selectedDriver.photo_url ?? null, p_photo_url: photo.remove ? null : `${SURL}/storage/v1/object/public/driver-photos/${photo.candidate.path}`, p_client_ref: crypto.randomUUID() };
+      }
+      photo.message = 'Confirming photo on the driver profile…'; renderPhoto();
+      const request = photo.request, receipt = await db.post('rpc/set_driver_photo', request, { attempts: 1 });
+      if (receipt?.driver_id !== request.p_driver_id || receipt?.client_ref !== request.p_client_ref || receipt?.photo_url !== request.p_photo_url) throw new Error('Photo save receipt could not be verified.');
+      selectedDriver.photo_url = receipt.photo_url; photo.request = null; clearPhotoCandidate(); photo.remove = false; photo.review = false;
+      photo.message = receipt.photo_url ? 'Photo saved — confirmed. Profile details and race data unchanged.' : 'Custom photo removed — confirmed. Default artwork restored; stored files kept.';
+    } catch (e) { photo.message = `Photo save not confirmed. Your selection is kept. ${photo.request ? 'Verify / retry uses the original request; Refresh saved photo checks for conflicting edits.' : 'Retry Save photo to verify/reuse the same upload path.'} ${e.message}`; }
+    finally { photo.busy = false; renderPhoto(); }
   }
 
   async function submitProfile() {
-    if (!selectedDriver) return;
+    if (!selectedDriver || driverLoading || profileSaving || photo.busy || photo.preparing || photoDraft()) return;
 
-    const btn = document.getElementById('submit-btn');
     const spinner = document.getElementById('submit-spinner');
     const label = document.getElementById('submit-label');
-    btn.disabled = true;
+    profileSaving = true; renderPhoto();
     spinner.style.display = 'block';
     label.textContent = 'Saving...';
 
@@ -461,31 +594,10 @@
         quote:           document.getElementById('f-quote').value.trim() || null,
       };
 
-      const photoInput = document.getElementById('f-photo');
-      if (photoInput.files.length > 0) {
-        label.textContent = 'Uploading photo...';
-        data.photo_url = await uploadPhoto(photoInput.files[0], selectedDriver.id);
-      }
+      await db.patch('drivers', `id=eq.${selectedDriver.id}`, data);
+      Object.assign(selectedDriver, data);
 
-      const res = await fetch(`${SURL}/rest/v1/drivers?id=eq.${selectedDriver.id}`, {
-        method: 'PATCH',
-        headers: {
-          'apikey': SKEY,
-          'Authorization': `Bearer ${SKEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify(data)
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Save failed');
-      }
-
-      const nextRaces = await fetch(`${SURL}/rest/v1/races?status=eq.upcoming&order=race_date.asc&limit=1`, {
-        headers: { 'apikey': SKEY, 'Authorization': `Bearer ${SKEY}` }
-      }).then(r => r.json());
+      const nextRaces = await db.get('races', 'status=eq.upcoming&order=race_date.asc&limit=1').catch(() => []);
 
       document.getElementById('form-screen').style.display = 'none';
       document.getElementById('success-screen').style.display = 'block';
@@ -505,14 +617,9 @@
 
     } catch (err) {
       alert('Error: ' + err.message);
-      btn.disabled = false;
-      spinner.style.display = 'none';
-      label.textContent = 'Save My Profile';
-      document.getElementById('upload-progress').style.display = 'none';
-    }
+    } finally { profileSaving = false; spinner.style.display = 'none'; label.textContent = 'Save profile details'; renderPhoto(); }
   }
 
-  init();
 </script>
 </body>
 </html>

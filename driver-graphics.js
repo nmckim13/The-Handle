@@ -46,24 +46,36 @@
 
   function graphicFor(name) {
     if (!name) return null;
-    return CUSTOM_NUMS[name] || CUSTOM_NUMS[String(name).trim()] || null;
+    var key = String(name).trim();
+    return Object.prototype.hasOwnProperty.call(CUSTOM_NUMS, key) ? CUSTOM_NUMS[key] : null;
   }
 
   function hasGraphic(name) {
     return !!graphicFor(name);
   }
 
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function safeSize(size) {
+    var n = Number(size);
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 1000) : 48;
+  }
+
   function txtSpan(num, size) {
-    var fz = Math.round(size * 0.85);
+    var fz = Math.round(safeSize(size) * 0.85);
     return '<span class="dg-num-txt" style="font-family:Archivo,sans-serif;font-weight:900;font-size:' +
-      fz + 'px;color:#fff;line-height:1;vertical-align:middle;">' + num + '</span>';
+      fz + 'px;color:#fff;line-height:1;vertical-align:middle;">' + escapeHtml(num) + '</span>';
   }
 
   // Runtime fallback if a graphic 404s: swap the <img> for a plain styled number.
   function onImgError(img) {
     try {
       var num = img.getAttribute('data-num') || '?';
-      var size = parseInt(img.getAttribute('data-size'), 10) || 48;
+      var size = safeSize(img.getAttribute('data-size'));
       img.outerHTML = txtSpan(num, Math.round(size * 0.88));
     } catch (e) { /* leave the broken img rather than throw during a live race */ }
   }
@@ -71,13 +83,13 @@
   // Returns an HTML string: the driver's number graphic <img>, or a styled number
   // fallback (also used if the image 404s at runtime). No leading "#".
   function numHtml(name, number, size) {
-    size = size || 48;
+    size = safeSize(size);
     var num = (number === null || number === undefined || number === '') ? '?' : number;
     var custom = graphicFor(name);
 
     if (custom) {
-      return '<img src="/' + custom.src + '" alt="' + num + '" class="dg-num-img" ' +
-        'data-num="' + num + '" data-size="' + size + '" ' +
+      return '<img src="/' + custom.src + '" alt="' + escapeHtml(num) + '" class="dg-num-img" ' +
+        'data-num="' + escapeHtml(num) + '" data-size="' + size + '" ' +
         'style="height:' + size + 'px;width:auto;object-fit:contain;mix-blend-mode:' + custom.blend +
         ';vertical-align:middle;display:inline-block;" ' +
         'onerror="window.DriverGraphics.onImgError(this)">';

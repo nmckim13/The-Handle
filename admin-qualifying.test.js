@@ -1,0 +1,51 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { test } = require('node:test');
+const { runInNewContext } = require('node:vm');
+
+function qualifyingPage() {
+  const storage = new Map(), timers = new Map(), writes = [];
+  let timerId = 0;
+  const scope = {
+    window: { addEventListener() {}, AdminAuth: { create: () => ({ getAccessToken: async () => 'staff-test-token' }) } },
+    document: { getElementById: () => null, querySelectorAll: () => [], addEventListener() {} },
+    navigator: { onLine: true }, URL,
+    localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+    setTimeout: fn => { timers.set(++timerId, fn); return timerId; },
+    clearTimeout: id => timers.delete(id),
+    fetch: async (url, options = {}) => {
+      if (options.method === 'POST') writes.push(JSON.parse(options.body));
+      return { ok: true, json: async () => [] };
+    }
+  };
+  runInNewContext(readFileSync(`${__dirname}/race-night-client.js`, 'utf8'), scope);
+  const html = readFileSync(`${__dirname}/admin/index.html`, 'utf8');
+  const script = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].find(match => match[1].trim())[1];
+  runInNewContext(script, scope);
+  runInNewContext("RN.raceId = 'friday'", scope);
+  return {
+    storage, writes,
+    run: code => runInNewContext(code, scope),
+    async flush() { for (const fn of timers.values()) await fn(); timers.clear(); }
+  };
+}
+
+test('qualifying saves positive decimal seconds, not partial, negative, zero, or non-finite times', () => {
+  const page = qualifyingPage();
+  for (const [input, expected] of [['12.345', 12.345], [' 9,876 ', 9.876], ['.125', .125], ['1', 1], ['12seconds', null], ['0', null], ['-3', null], ['Infinity', null], ['1e2', null], ['9.8765', null], ['', null]]) {
+    page.run(`rnSetQual('driver', ${JSON.stringify(input)})`);
+    const times = JSON.parse(page.storage.get('rn_qual_friday'));
+    assert.equal(times.driver ?? null, expected, input);
+  }
+});
+
+test('a delayed qualifying mirror stays with its original race after the operator switches races', async () => {
+  const page = qualifyingPage();
+  page.run("rnSetQual('alex', '12.345'); RN.raceId = 'saturday';");
+  await page.flush();
+  assert.equal(page.writes.length, 1);
+  assert.equal(page.writes[0].race_id, 'friday');
+  assert.deepEqual(page.writes[0].qual_times, { alex: 12.345 });
+  assert.deepEqual(JSON.parse(page.storage.get('rn_qual_friday')), { alex: 12.345 });
+  assert.equal(page.storage.has('rn_qual_saturday'), false);
+});

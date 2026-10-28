@@ -7,10 +7,10 @@
 // specific id/filter, so re-applying one that already landed is a no-op).
 // POST is NOT retried by default, because most inserts aren't idempotent -
 // retrying one whose response got lost (but which actually landed) would
-// create a duplicate row. A POST is only retried when the caller proves it's
-// safe by passing a `client_ref`-style `isDuplicate(error)` check, so a
-// retried duplicate insert is recognized (via the unique-index conflict it
-// triggers) instead of silently creating a second row.
+// create a duplicate row. Callers opt in with explicit attempts for an
+// idempotent RPC (submit_signup returns the same receipt for a stable ref),
+// or an isDuplicate(error) check for legacy client_ref-protected inserts.
+// Never treat an arbitrary signup uniqueness conflict as a successful retry.
 (function (global) {
   function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
@@ -18,6 +18,7 @@
   const BACKOFF_MS = i => 500 * Math.pow(2, i); // 500ms, 1s, 2s
 
   function isRetryableError(e) {
+    if (e.name === 'AbortError' || e.name === 'TimeoutError') return false;
     if (typeof e.httpStatus === 'number') return e.httpStatus >= 500;
     return true;
   }
@@ -46,12 +47,12 @@
     return res;
   }
 
-  function createClient(url, key) {
-    const headers = { apikey: key, Authorization: `Bearer ${key}` };
+  function createClient(url, key, { getAccessToken } = {}) {
+    const headers = async () => ({ apikey: key, Authorization: `Bearer ${getAccessToken ? await getAccessToken() : key}` });
     const client = {
-      async get(table, query = '') {
+      async get(table, query = '', { signal } = {}) {
         return withRetry(async () => {
-          const res = await fetch(`${url}/rest/v1/${table}?${query}`, { headers });
+          const res = await fetch(`${url}/rest/v1/${table}?${query}`, { headers: await headers(), signal });
           await toErrorOrJson(res, table);
           return res.json();
         });
@@ -60,22 +61,22 @@
         return withRetry(async () => {
           const res = await fetch(`${url}/rest/v1/${table}`, {
             method: 'POST',
-            headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+            headers: { ...await headers(), 'Content-Type': 'application/json', Prefer: 'return=representation' },
             body: JSON.stringify(data)
           });
           await toErrorOrJson(res, table);
           return res.json();
-        }, { ...opts, attempts: opts.isDuplicate ? RETRYABLE_ATTEMPTS : 1 });
+        }, { attempts: opts.isDuplicate ? RETRYABLE_ATTEMPTS : 1, ...opts });
       },
       async del(table, id) {
         return withRetry(async () => {
-          const res = await fetch(`${url}/rest/v1/${table}?id=eq.${id}`, { method: 'DELETE', headers });
+          const res = await fetch(`${url}/rest/v1/${table}?id=eq.${id}`, { method: 'DELETE', headers: await headers() });
           await toErrorOrJson(res, table);
         });
       },
       async delWhere(table, query) {
         return withRetry(async () => {
-          const res = await fetch(`${url}/rest/v1/${table}?${query}`, { method: 'DELETE', headers });
+          const res = await fetch(`${url}/rest/v1/${table}?${query}`, { method: 'DELETE', headers: await headers() });
           await toErrorOrJson(res, table);
         });
       },
@@ -83,7 +84,7 @@
         return withRetry(async () => {
           const res = await fetch(`${url}/rest/v1/${table}?${query}`, {
             method: 'PATCH',
-            headers: { ...headers, 'Content-Type': 'application/json' },
+            headers: { ...await headers(), 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
           });
           await toErrorOrJson(res, table);
@@ -116,12 +117,48 @@
     return String(str == null ? '' : str).replace(/[&<>"']/g, ch => ESCAPE_MAP[ch]);
   }
 
+  function safeUrl(value) {
+    if (!value) return '';
+    try {
+      const url = new URL(value, global.location?.origin || 'https://yardkartz.com');
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch { return ''; }
+  }
+
+  function safeColor(value, fallback = '#fff') {
+    return /^#(?:[a-f\d]{3}|[a-f\d]{6}|[a-f\d]{8})$/i.test(value || '') ? value : fallback;
+  }
+
   function debounce(fn, ms) {
     let t = null;
     return (...args) => {
       clearTimeout(t);
       t = setTimeout(() => fn(...args), ms);
     };
+  }
+
+  function raceCountdown(raceDate, now = new Date()) {
+    // Compare calendar dates at the track, not elapsed hours or the viewer's
+    // timezone. UTC date arithmetic keeps daylight-saving changes out of it.
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago', year: 'numeric', month: 'numeric', day: 'numeric'
+    }).formatToParts(now);
+    const part = type => Number(parts.find(p => p.type === type).value);
+    const today = Date.UTC(part('year'), part('month') - 1, part('day'));
+    const days = (new Date(raceDate + 'T00:00:00Z') - today) / 86400000;
+    return days > 0 ? `${days} day${days !== 1 ? 's' : ''} away` : days === 0 ? 'Race day!' : 'past due';
+  }
+
+  const ANNOUNCEMENT_CLASS = Object.freeze({
+    'General': 'ann-general', 'Rain Delay': 'ann-rain_delay',
+    'Cancellation': 'ann-cancellation', 'Reschedule': 'ann-reschedule',
+    'All Clear': 'ann-all_clear', 'Race Night Reminder': 'ann-race_night_reminder'
+  });
+  function announcementAge(value, now = Date.now()) {
+    const age = now - new Date(value).getTime();
+    if (!value || !Number.isFinite(age) || age < -300000) return 'time unavailable';
+    const mins = Math.max(0, Math.floor(age / 60000));
+    return mins < 2 ? 'just now' : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.floor(mins / 60)}h ago` : `${Math.floor(mins / 1440)}d ago`;
   }
 
   // The existing schedule renderer only distinguishes past vs. not-past, so a
@@ -162,5 +199,5 @@
 
   installCanceledRaceObserver();
 
-  global.RaceNight = { createClient, sleep, withRetry, isDuplicateRef, newRef, FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, escapeHtml };
+  global.RaceNight = { createClient, sleep, withRetry, isDuplicateRef, newRef, FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, raceCountdown, escapeHtml, safeUrl, safeColor, ANNOUNCEMENT_CLASS, announcementAge };
 })(window);

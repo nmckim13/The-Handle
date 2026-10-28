@@ -28,7 +28,7 @@ big-screen.html / dashboard  (matches transponder → driver, shows laps)
 3. **Configure the bridge**:
    ```bash
    cd lapmonitor-bridge
-   cp .env.example .env      # fill in SUPABASE_KEY (anon key) and confirm ROOM_ID
+   cp .env.example .env      # fill in SUPABASE_SERVICE_ROLE_KEY privately and confirm ROOM_ID
    npm install
    npm start
    ```
@@ -67,8 +67,8 @@ fly auth login                       # you already have an account
 # if "yardkartz-lapmonitor-bridge" is taken, edit `app = ...` in fly.toml first.
 fly apps create yardkartz-lapmonitor-bridge
 
-# Set the ONE secret (the Supabase anon key — same key that's in big-screen.html).
-fly secrets set SUPABASE_KEY="paste-the-anon-key-here"
+# Store SUPABASE_SERVICE_ROLE_KEY through the host's private secrets interface.
+# Use the Supabase legacy service_role JWT, never the browser's public anon key.
 
 fly deploy
 ```
@@ -83,13 +83,13 @@ You'll see JSON like `{"lapmonitorConnected":true,"raceLive":false,...}`. On rac
 night `raceLive` flips to `true` automatically when you hit Run Race Night.
 
 Useful Fly commands: `fly logs` (watch it live), `fly status` (is it running),
-`fly secrets set SUPABASE_KEY=...` (rotate the key), `fly deploy` (push updates).
+the host's private secrets interface (rotate `SUPABASE_SERVICE_ROLE_KEY`), `fly deploy` (push updates).
 
 It costs pennies — one shared-cpu-1x / 256MB machine, always on.
 
 ## Other ways to run it
 
-- **A laptop at the track** — `cp .env.example .env`, fill in `SUPABASE_KEY`,
+- **A laptop at the track** — `cp .env.example .env`, fill in `SUPABASE_SERVICE_ROLE_KEY` privately,
   then `npm install && npm start`. Fine for one night; you just have to remember
   to start it. Auto-reconnects if wifi blips.
 - **Railway / Render** — same Docker image works. *(Vercel cron/serverless can't
@@ -97,6 +97,16 @@ It costs pennies — one shared-cpu-1x / 256MB machine, always on.
 
 The bridge is idempotent and upserts on `(room_id, transponder_id)`, so
 restarting it mid-night is safe — it just re-syncs from the next snapshot.
+
+## Security rollout
+
+Before applying `migrations/010_admin_security.sql`, provision the worker's
+server-only `SUPABASE_SERVICE_ROLE_KEY` and deploy this worker configuration.
+The migration removes anonymous timing writes but keeps public timing reads and
+Realtime. A worker still using the old public key will stop updating lap times.
+The service-role credential bypasses row-level security: keep it in the worker's
+private environment, never in browser files, screenshots, logs, or Git. See
+`../SECURITY_SETUP.md` for the coordinated rollout and staff provisioning.
 
 Quick pre-night check (any machine, needs only the room link):
 `npm install && node probe.js 512060739` → prints the driver list if the room

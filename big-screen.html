@@ -7,6 +7,7 @@
 <link rel="icon" href="/logo.png">
 <meta name="robots" content="noindex">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/live-board.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -106,14 +107,16 @@
 
     <div class="flag-banner" id="flag-banner"></div>
 
-    <div class="stage-card" id="stage-card">
+    <section id="board-status" aria-label="Race board updates"></section>
+
+    <div class="stage-card" id="stage-card" data-live="false">
       <div class="stage-title"><span class="dot"></span><span id="stage-title-text">Loading…</span></div>
       <div class="stage-meta" id="stage-meta"></div>
       <div class="lap-line" id="lap-line"></div>
     </div>
 
     <div class="leaderboard-wrap" id="leaderboard-wrap">
-      <div class="empty-state">Waiting for race night to go live…</div>
+      <div class="empty-state">Waiting for race data…</div>
     </div>
   </div>
 </div>
@@ -121,11 +124,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="/race-night-client.js"></script>
 <script src="/driver-graphics.js"></script>
+<script src="/live-board.js"></script>
 <script>
 const SURL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
 
-const { FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, escapeHtml } = window.RaceNight;
+const { FLAG_LABEL, STAGE_LABEL, sessionLabel, debounce, escapeHtml, safeColor } = window.RaceNight;
 const get = window.RaceNight.createClient(SURL, SKEY).get;
 
 // QUALIFYING — one flat list of every checked-in driver, ranked by best
@@ -156,7 +160,7 @@ function qualifyingListHtml(entries, qg, qualTimes){
           <div class="gr-pos">${i + 1}</div>
           ${badge}
           <div class="gr-num">${numG(e, 52)}</div>
-          <div class="gr-name" style="color:${e.color || '#fff'}">${escapeHtml(e.name)}</div>
+          <div class="gr-name" style="color:${safeColor(e.color)}">${escapeHtml(e.name)}</div>
           <div class="gr-time">${t != null ? Number(t).toFixed(3) + 's' : '—'}</div>
         </div>`;
       }).join('')}
@@ -176,7 +180,7 @@ function startingGridHtml(lineup, opts){
     ${lineup.map(l => `<div class="sg-slot">
       <div class="sg-pos">${l.starting_position}</div>
       <div class="sg-num">${numG(l.entries, size)}</div>
-      <div class="sg-name" style="color:${l.entries?.color || '#fff'}">${escapeHtml(l.entries?.name || '—')}</div>
+      <div class="sg-name" style="color:${safeColor(l.entries?.color)}">${escapeHtml(l.entries?.name || '—')}</div>
     </div>`).join('')}
   </div>`;
 }
@@ -218,9 +222,9 @@ function heatCardHtml(s, lineup, results){
   // greyed below the finishers). Finishing order isn't a physical grid, so
   // this stays a single column, same as before.
   const finRows = results.slice().sort((a, b) => a.finishing_position - b.finishing_position).map(r =>
-    `<div class="hc-row"><div class="hc-pos">${r.finishing_position}</div><div class="hc-num">${numG(r.entries, 34)}</div><div class="hc-name" style="color:${r.entries?.color || '#fff'}">${escapeHtml(r.entries?.name || '—')}</div><div class="hc-lap">${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : ''}</div></div>`).join('');
+    `<div class="hc-row"><div class="hc-pos">${r.finishing_position}</div><div class="hc-num">${numG(r.entries, 34)}</div><div class="hc-name" style="color:${safeColor(r.entries?.color)}">${escapeHtml(r.entries?.name || '—')}</div><div class="hc-lap">${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : ''}</div></div>`).join('');
   const outRows = stillOut.map(l =>
-    `<div class="hc-row out"><div class="hc-pos">—</div><div class="hc-num">${numG(l.entries, 34)}</div><div class="hc-name" style="color:${l.entries?.color || '#fff'}">${escapeHtml(l.entries?.name || '—')}</div><div class="hc-lap"></div></div>`).join('');
+    `<div class="hc-row out"><div class="hc-pos">—</div><div class="hc-num">${numG(l.entries, 34)}</div><div class="hc-name" style="color:${safeColor(l.entries?.color)}">${escapeHtml(l.entries?.name || '—')}</div><div class="hc-lap"></div></div>`).join('');
   return `<div class="heat-card${live ? ' live' : ''}">
     <div class="heat-card-head"><div class="heat-card-title">Heat ${s.session_number}</div><div class="heat-card-badge">${badge}</div></div>
     <div class="heat-card-sub">Finish · ${lineup.length} karts</div>
@@ -228,7 +232,7 @@ function heatCardHtml(s, lineup, results){
   </div>`;
 }
 
-async function refresh(){
+async function loadBoard(signal){
   const stageCard = document.getElementById('stage-card');
   const titleEl = document.getElementById('stage-title-text');
   const metaEl = document.getElementById('stage-meta');
@@ -236,18 +240,19 @@ async function refresh(){
   const boardWrap = document.getElementById('leaderboard-wrap');
   const flagEl = document.getElementById('flag-banner');
 
-  const rows = await get('live_state', 'select=*&is_live=eq.true&limit=1');
+  const rows = await get('live_state', 'select=*&is_live=eq.true&limit=1', { signal });
   const state = rows[0];
   if(!state){
+    stageCard.dataset.live = 'false';
     titleEl.textContent = 'Not Live Right Now';
     metaEl.textContent = 'Check back on race night';
     lapEl.textContent = '';
     flagEl.className = 'flag-banner';
     boardWrap.innerHTML = '<div class="empty-state">Waiting for race night to go live…</div>';
-    return;
+    return { live: false };
   }
 
-  const races = await get('races', `select=*&id=eq.${state.race_id}`);
+  const races = await get('races', `select=*&id=eq.${state.race_id}`, { signal });
   const race = races[0];
   // Fetch every session for the race and follow the one that's actually active
   // (in progress, else being scored, else next up). live_state.session_id sticks
@@ -255,7 +260,7 @@ async function refresh(){
   // what's on track — this lets the kiosk advance heat to heat on its own as the
   // manager scores each one.
   const STAGE_ORDER = { heat: 0, b_main: 1, feature: 2 };
-  const allSessions = (await get('race_sessions', `select=*&race_id=eq.${state.race_id}`))
+  const allSessions = (await get('race_sessions', `select=*&race_id=eq.${state.race_id}`, { signal }))
     .sort((a, b) => (STAGE_ORDER[a.session_type] - STAGE_ORDER[b.session_type]) || (a.session_number - b.session_number));
   // Pull every session's lineup + results in one shot so the board can show all
   // heats at once (and so results appear the instant they're entered).
@@ -264,12 +269,22 @@ async function refresh(){
   if(allSessions.length){
     const ids = allSessions.map(s => s.id).join(',');
     const [lus, res] = await Promise.all([
-      get('lineups', `select=*,entries(name,car_number,color)&session_id=in.(${ids})&order=starting_position.asc`),
-      get('session_results', `select=*,entries(name,car_number,color)&session_id=in.(${ids})&order=finishing_position.asc`)
+      get('lineups', `select=*,entries:public_entries(name,car_number,color)&session_id=in.(${ids})&order=starting_position.asc`, { signal }),
+      get('session_results', `select=*,entries:public_entries(name,car_number,color)&session_id=in.(${ids})&order=finishing_position.asc`, { signal })
     ]);
     lus.forEach(l => lineupsBy[l.session_id] && lineupsBy[l.session_id].push(l));
     res.forEach(r => resultsBy[r.session_id] && resultsBy[r.session_id].push(r));
   }
+  // Finish every required read before replacing the last good board. Timing
+  // telemetry is optional: a feed outage must not hide grids or scored results.
+  const entries = !allSessions.length
+    ? (await get('public_entries', `select=*&race_id=eq.${state.race_id}&status=eq.checked_in`, { signal })).sort(byCarNumber)
+    : [];
+  const metadata = { live: true };
+  try {
+    const timing = await get('live_timing', `select=updated_at&race_id=eq.${state.race_id}&order=updated_at.desc&limit=1`, { signal });
+    metadata.timingAt = timing[0]?.updated_at;
+  } catch { metadata.timingUnavailable = true; }
   // The active session drives the header/flag/lap. live_state.session_id sticks
   // on the first heat all through heat racing, so derive it from real state:
   // in progress, else being scored, else next up.
@@ -284,7 +299,8 @@ async function refresh(){
   const qualDrawn = !!(state.qual_groups && state.qual_groups.byEntry && Object.keys(state.qual_groups.byEntry).length > 0);
   const stageLabel = (!allSessions.length && qualDrawn) ? 'Qualifying' : (STAGE_LABEL[state.current_stage] || state.current_stage);
   const stageSessionLabel = sessionLabel(session);
-  titleEl.textContent = `LIVE — ${stageLabel}${stageSessionLabel ? ' — ' + stageSessionLabel : ''}`;
+  stageCard.dataset.live = 'true';
+  titleEl.textContent = `LIVE — ${stageLabel}${stageSessionLabel && stageSessionLabel !== stageLabel ? ' — ' + stageSessionLabel : ''}`;
   metaEl.textContent = race ? `R${race.round} — ${race.name}` : '';
   lapEl.textContent = (session && session.laps_scheduled) ? `LAP ${session.current_lap || 0} / ${session.laps_scheduled}` : '';
 
@@ -300,11 +316,10 @@ async function refresh(){
   const numG = (e, size) => window.DriverGraphics.numHtml(e?.name, e?.car_number, size);
 
   if(!allSessions.length){
-    const entries = (await get('entries', `select=*&race_id=eq.${state.race_id}&status=eq.checked_in`)).sort(byCarNumber);
     boardWrap.innerHTML = entries.length
       ? qualifyingListHtml(entries, state.qual_groups, state.qual_times)
       : '<div class="empty-state">Waiting for drivers to check in…</div>';
-    return;
+    return metadata;
   }
 
   // HEAT STAGE — show every heat on screen at once so each driver can find their
@@ -314,7 +329,7 @@ async function refresh(){
     boardWrap.innerHTML = `<div class="heats-grid">
       ${heats.map(h => heatCardHtml(h, lineupsBy[h.id] || [], resultsBy[h.id] || [])).join('')}
     </div>`;
-    return;
+    return metadata;
   }
 
   // B-MAIN / FEATURE — the main event gets the full-width spotlight.
@@ -323,7 +338,7 @@ async function refresh(){
 
   if(!results.length && !stillRacing.length){
     boardWrap.innerHTML = '<div class="empty-state">Lineup coming up…</div>';
-    return;
+    return metadata;
   }
 
   // Before anyone has finished, the board IS the starting grid — paired 2-wide
@@ -333,17 +348,20 @@ async function refresh(){
     boardWrap.innerHTML = `
       <div class="grid-head">Starting Lineup${stageSessionLabel ? ' — ' + escapeHtml(stageSessionLabel) : ''}</div>
       ${startingGridHtml(lineup, { compact: false })}`;
-    return;
+    return metadata;
   }
 
   boardWrap.innerHTML = `
     <table class="board-tbl"><thead><tr><th>Pos</th><th>No.</th><th>Driver</th><th>Best Lap</th></tr></thead><tbody>
-      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td class="num">${numG(r.entries, 44)}</td><td style="color:${r.entries?.color || '#fff'}">${escapeHtml(r.entries?.name || '—')}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
+      ${results.map(r => `<tr><td class="pos">${r.finishing_position}</td><td class="num">${numG(r.entries, 44)}</td><td style="color:${safeColor(r.entries?.color)}">${escapeHtml(r.entries?.name || '—')}</td><td>${r.best_lap_seconds != null ? Number(r.best_lap_seconds).toFixed(3) + 's' : '—'}</td></tr>`).join('')}
     </tbody></table>
     ${stillRacing.length ? `<div class="still-racing">Still racing: ${stillRacing.map(l => '#' + escapeHtml(l.entries?.car_number || '?') + ' ' + escapeHtml(l.entries?.name || '—')).join(' · ')}</div>` : ''}
   `;
+  return metadata;
 }
 
+const boardUpdates = window.LiveBoard.create({ root: document.getElementById('board-status'), load: loadBoard });
+const refresh = boardUpdates.refresh;
 let _channel = null;
 function ensureRealtime(){
   if(_channel || typeof window.supabase === 'undefined') return;
@@ -354,12 +372,13 @@ function ensureRealtime(){
     .on('postgres_changes', { event: '*', schema: 'public', table: 'session_results' }, debouncedRefresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'race_sessions' }, debouncedRefresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, debouncedRefresh)
-    .subscribe();
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'lineups' }, debouncedRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'live_timing' }, debouncedRefresh)
+    .subscribe(status => { boardUpdates.setRealtime(status); if (status === 'SUBSCRIBED') refresh(); });
 }
 
 refresh();
 ensureRealtime();
-setInterval(refresh, 15000); // safety-net poll in case the socket drops on an unattended kiosk
 </script>
 </body>
 </html>

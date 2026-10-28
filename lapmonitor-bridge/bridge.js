@@ -42,14 +42,14 @@ const SERVER       = env('LAPMONITOR_SERVER', 'https://lapmonitor.live');
 const ROOM_ID      = env('LAPMONITOR_ROOM_ID');          // required, e.g. "512060739"
 const AUTH_TOKEN   = env('LAPMONITOR_AUTH_TOKEN', '');   // set once the official API gives you one
 const SUPABASE_URL = env('SUPABASE_URL', 'https://lnsvacnbgmklpkgzbodb.supabase.co');
-const SUPABASE_KEY = env('SUPABASE_KEY');                // anon key is fine (RLS is open), service key also works
+const SUPABASE_KEY = env('SUPABASE_SERVICE_ROLE_KEY');   // server-only; never copy into browser code
 const RACE_ID_ENV  = env('RACE_ID', '');                // optional; else auto-detected from the live race
 // How often (ms) to re-read driver→transponder assignments AND check whether a
 // race went live. Lower = faster auto-start when you hit Run Race Night.
 const POLL_MS = Number(env('POLL_MS', env('DRIVER_REFRESH_MS', '15000')));
 const PORT    = Number(env('PORT', '8080')); // status/health endpoint (used by Fly's health check)
 
-for (const [k, v] of Object.entries({ LAPMONITOR_ROOM_ID: ROOM_ID, SUPABASE_KEY })) {
+for (const [k, v] of Object.entries({ LAPMONITOR_ROOM_ID: ROOM_ID, SUPABASE_SERVICE_ROLE_KEY: SUPABASE_KEY })) {
   if (!v) { console.error(`Missing required env ${k}. Copy .env.example to .env and fill it in.`); process.exit(1); }
 }
 

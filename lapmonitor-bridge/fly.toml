@@ -12,8 +12,8 @@ primary_region = "ord"   # Chicago — closest Fly region to Indiana
 
 [build]
 
-# Non-secret config. SUPABASE_KEY is set separately as a secret (see README):
-#   fly secrets set SUPABASE_KEY="<anon key>"
+# Non-secret config. Set SUPABASE_SERVICE_ROLE_KEY separately as a server-only
+# Fly secret (see README). Never use an anon key or put this secret in [env].
 [env]
   LAPMONITOR_ROOM_ID = "512060739"
   LAPMONITOR_SERVER  = "https://lapmonitor.live"
