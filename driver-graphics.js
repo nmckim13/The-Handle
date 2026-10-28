@@ -41,7 +41,8 @@
     'Maxzilla':       { src: 'maxzilla56.png',  blend: 'lighten' },
     'Jordan Sculley': { src: 'jordan23.png',    blend: 'lighten' },
     'Cole V':         { src: 'colev25.png',     blend: 'lighten' },
-    'Matthew Deyoung':{ src: 'matthew51.png',   blend: 'lighten' }
+    'Matthew Deyoung':{ src: 'matthew51.png',   blend: 'lighten' },
+    'Kelton':         { src: 'kelton73.png',    blend: 'lighten' }
   };
 
   function graphicFor(name) {

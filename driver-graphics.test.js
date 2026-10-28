@@ -12,6 +12,9 @@ test('registered graphics and trimmed names retain their image', () => {
   assert.equal(graphics.hasGraphic(' Nolan McKim '), true);
   assert.match(graphics.numHtml('Nolan McKim', 7, 52), /src="\/nolan7.png"/);
   assert.match(graphics.numHtml('Nolan McKim', 7, 52), /height:52px/);
+  assert.equal(graphics.hasGraphic(' Kelton '), true);
+  assert.match(graphics.numHtml('Kelton', 73, 48), /src="\/kelton73.png"/);
+  assert.ok(readFileSync(join(__dirname, 'kelton73.png')).length > 0);
 });
 
 test('unknown and inherited property names render text, including zero and missing numbers', () => {
