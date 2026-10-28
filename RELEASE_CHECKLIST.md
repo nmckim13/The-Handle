@@ -91,8 +91,9 @@ Preparing this file locally is **not permission to apply it**.
 - [ ] Review current index definitions and duplicate stage groups privately.
   Existing duplicates or an incompatible index need a separate resolution;
   do not delete history or drop an existing index automatically.
-- [ ] Rehearse on isolated staging with backup/restore coverage. Obtain explicit
-  approval for the named database, trusted operator and idle maintenance window.
+- [ ] Follow the [PostgreSQL 17 repair rehearsal](STAGING_REHEARSAL.md#postgresql-17-session-index-repair-rehearsal),
+  including isolated staging and backup/restore coverage. Obtain explicit approval
+  for the named database, trusted operator and idle maintenance window.
 - [ ] Run only this repair file as a standalone batch with stop-on-error enabled.
   Ordinary `CREATE UNIQUE INDEX` briefly blocks session-table writers; the file
   limits lock waits to 2 seconds and each statement to 20 seconds. Duplicate

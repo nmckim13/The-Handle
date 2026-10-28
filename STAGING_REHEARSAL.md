@@ -45,6 +45,124 @@ access/refresh tokens, customer waivers or raw Auth exports in this document.
   bridge probe in section 3 is the only setup exception; stop it and confirm
   quiescence before installation. Keep the production bridge untouched.
 
+### PostgreSQL 17 session-index repair rehearsal
+
+This is a **repair-only** sub-rehearsal, before the full 010–018 rollout. The
+reviewed repair candidate is
+[`b038ffa`](https://github.com/nmckim13/The-Handle/commit/b038ffaf5b2448d21e257f141122d12a5b447f9a);
+record any later approved candidate explicitly. Use only
+[migrations/repairs/race_sessions_unique_stage.sql](migrations/repairs/race_sessions_unique_stage.sql).
+Do not replay 001–009, apply 010–018 or deploy a frontend as part of this scope.
+
+#### A. Disposable local PostgreSQL 17 compatibility check
+
+The existing preflight suite selects its server/client binaries using
+`pg_config --bindir`. It accepts no database URL, strips inherited PostgreSQL
+connection settings, creates a fresh Unix-socket-only cluster and removes it
+after the run. Its legacy/Auth/Storage fixtures are deliberately synthetic,
+not a deployable Supabase schema. Run as an unprivileged OS user.
+
+Select an approved PostgreSQL 17 installation containing server/client binaries
+and the `pgcrypto` extension. The path below is the isolated toolchain prepared
+in this orb; substitute the installation path on another machine. The version
+guard must fail rather than silently falling back to the installed PostgreSQL 15.
+
+```sh copy Copy PostgreSQL 17 Check
+(
+  set -eu
+  export PATH="$HOME/.local/handle-postgresql-17.6/bin:$PATH"
+  case "$(pg_config --version)" in
+    'PostgreSQL 17.'*) ;;
+    *) echo 'BLOCKED: select a PostgreSQL 17 toolchain' >&2; exit 1 ;;
+  esac
+  "$(pg_config --bindir)/postgres" --version
+  PYTHONDONTWRITEBYTECODE=1 python3 migrations/tests/test_release_preflight.py
+)
+```
+
+Capture the version and complete test summary. Expected: **8 tests pass**, with
+missing-index preflight rejection followed by successful repair/preflight,
+exact schema/grant/data preservation, correct three-column uniqueness, and
+atomic rejection of duplicates/name collisions. A local pass clears only the
+engine-compatibility check, not managed Supabase or real bridge verification.
+
+Local evidence, **2026-10-28**, for the reviewed repair above:
+
+- Upstream **PostgreSQL 17.6**, compiled from the official source archive after
+  verifying its published SHA-256; installed only in this orb. This is not the
+  managed Supabase build. The server itself reported `17.6` in the fixture.
+- The exact command block above passed **8/8 tests** in 2.109 seconds. A separate
+  PostgreSQL 15 control failed the version guard before creating a test cluster.
+- Disposable concurrency probes held the repair's actual index lock until
+  rollback: service-role timing FK insert/update completed in **6.9ms** under
+  600ms per-statement timeouts; a session writer hit its 600ms timeout. With a
+  writer holding the conflicting lock, the unchanged repair failed after
+  **2.01 seconds**. Full schema/grant/data dumps matched before/after both probes.
+- Repair file SHA-256:
+  `e909bb85bb3ebf678c37f72a59d7a42d952d5e056718f399d91182dd44bfdefc`.
+  No shared database, Auth, Storage, producer or bridge was contacted. These
+  results do not satisfy the remote cases below.
+
+#### B. Separately authorized Supabase staging run
+
+Fill in section 1's environment/authorization record. For this repair-only run,
+no frontend deployment or new Auth accounts are required. Actual bridge checks
+still require the separate staging worker, producer, room and server credential.
+The SQL connection must be write-capable and own `public.race_sessions` (or use
+an approved owner-capable role); BYPASSRLS alone is insufficient. The read-only
+inspection connection cannot execute the repair.
+
+1. Record `server_version`, staging project reference, reviewed candidate/file
+   hash, operator/reviewer and approved window. Require PostgreSQL **17** and
+   record the patch version; production was observed on **17.6**. Review any
+   patch/build difference. Verify sanitized PRE-010 schema provenance, custom
+   integrations, idle race/session state, and recoverable backup/restore evidence.
+2. Use approved synthetic preservation records from section 3. Also include
+   heat 1, heat 2 and feature 1 for one race, plus heat 1 for another race, with
+   lineup/result links and inactive live state. Record exact rows, waivers,
+   counters, FKs, timing and grants privately. These asymmetric stages must all
+   survive: the index must not prevent different heats, types or races.
+3. Inspect current indexes and duplicate stage groups privately. Require zero
+   duplicate `(race_id, session_type, session_number)` groups. Run the complete
+   PRE-010 read-only preflight: a missing-stage-index blocker is expected only
+   on the deliberately missing-index baseline; resolve every other finding.
+   If a compatible index already exists, **do not drop it to manufacture this
+   scenario**. Use a separately approved disposable clone for missing/bad-index
+   cases. Never automatically remove duplicate history or incompatible indexes.
+4. After a bounded real bridge probe, return the producer/bridge to idle and
+   freeze preservation evidence. Apply only the repair, as a standalone batch
+   with stop-on-error. It may block session writes, waits at most 2 seconds for
+   a lock and has a 20-second per-statement timeout. Stop on any error; do not
+   retry blindly or rerun the file after a confirmed commit. Resolve an unknown
+   outcome by inspecting the catalog first. Roll back any failed editor session.
+5. Verify the index is unique, valid, ready and immediate, on exactly the three
+   intended key columns with no predicate. Compare all preserved rows/FKs/grants:
+   **zero changes**, with only the intended index added. Rerun the full read-only
+   preflight. A clean result is not permission to apply 010–018.
+6. Repeat the actual-producer bridge probe against the same staging worker and
+   credential; verify FK-bearing timing insert/update, not just health/logs.
+   Return to idle and record these intentional timing changes separately.
+   Before/after probes do not prove uninterrupted live racing during the repair.
+   Local SQL timing tests are not substitutes for this real integration gate.
+
+Record the following in the private execution report; all remote cases start
+**NOT RUN**. Duplicate/name-collision/lock fault injection belongs only in a
+separately approved disposable environment, not the shared staging baseline.
+
+| Case | Required evidence | Initial status |
+| --- | --- | --- |
+| PG17-ENGINE | Staging server/client version plus the independently recorded 8-test local summary | NOT RUN |
+| PG17-REPAIR | Missing-index blocker, exact repair hash/outcome, valid index and fresh full preflight | NOT RUN |
+| PG17-PRESERVE | Zero unexplained row/grant/FK changes; asymmetric stages, signups/waivers and timing retained | NOT RUN |
+| PG17-FAILURE | Disposable-copy duplicates/name collision roll back with no partial index/data changes; busy writer causes bounded lock timeout | NOT RUN |
+| PG17-BRIDGE | Actual staging producer/bridge timing writes before and after, correct FKs and final idle state | NOT RUN |
+| PG17-RECOVERY | Backup restored and checked on a disposable target; reviewer signs off remaining version/schema differences | NOT RUN |
+
+Stop on a production destination, unexpected row change, lock/statement timeout,
+unknown commit outcome or bridge failure. Preserve evidence, keep the affected
+workflow closed and obtain a specific recovery decision; do not undo the repair
+by dropping history or blindly restoring a backup over new signups/timing.
+
 ## 2. Build the staging-only frontend locally
 
 **Do not deploy/serve the repository checkout as staging.** Four HTML pages
