@@ -1069,21 +1069,29 @@ function toggleRule(header) {
 
 const pc = i => i===0?'pos p1':i===1?'pos p2':i===2?'pos p3':'pos';
 
+function showDataUnavailable(id, label, columns) {
+  const message = `<div class="empty" role="status">${escapeHtml(label)} temporarily unavailable. Please try again later.</div>`;
+  document.getElementById(id).innerHTML = columns ? `<tr><td colspan="${columns}">${message}</td></tr>` : message;
+}
+
 async function loadHome() {
-  const [drivers, races, results] = await Promise.all([
+  const reads = await Promise.allSettled([
     get('public_drivers','select=*&order=wins.desc'),
     get('races','select=*&order=race_date.asc'),
     get('results','select=*,drivers:public_drivers(name,number)&season=eq.2026&order=position.asc')
   ]);
+  const [drivers, races, results] = reads.map(read => read.status === 'fulfilled' ? read.value : null);
 
-  document.getElementById('sc-drivers').textContent = drivers.length||'0';
-  const past = races.filter(r=>r.status==='past' && r.race_date?.startsWith('2026'));
-  document.getElementById('sc-races').textContent = past.length||'0';
+  document.getElementById('sc-drivers').textContent = drivers ? drivers.length : '—';
+  const past = races ? races.filter(r=>r.status==='past' && r.race_date?.startsWith('2026')) : [];
+  document.getElementById('sc-races').textContent = races ? past.length : '—';
 
   // LEFT PANEL — last race winner
   const last = [...past].sort((a,b)=>new Date(b.race_date)-new Date(a.race_date))[0];
   const winEl = document.getElementById('home-winner');
-  if (last) {
+  if (!drivers || !races || !results) {
+    showDataUnavailable('home-winner', 'Winner details');
+  } else if (last) {
     const winResult = results.find(r => r.race_id === last.id && r.position === 1);
     const winDriver = winResult ? drivers.find(d => d.id === winResult.driver_id) : null;
     if (winDriver) {
@@ -1104,17 +1112,20 @@ async function loadHome() {
   }
 
   // RIGHT PANEL — next race with countdown
-  const next = races.find(r=>r.status==='upcoming');
+  const next = races?.find(r=>r.status==='upcoming');
   const nextEl = document.getElementById('home-nextrace');
-  if (next) {
+  if (!races) {
+    showDataUnavailable('home-nextrace', 'Schedule');
+  } else if (next) {
     const nd = new Date(next.race_date+'T12:00:00');
     const nmo = nd.toLocaleString('en',{month:'long'}).toUpperCase();
     const countdown = raceCountdown(next.race_date);
-    const signups = await get('public_entries', `race_id=eq.${next.id}&status=neq.withdrawn&select=id`);
-    const n = Array.isArray(signups) ? signups.length : 0;
-    const signupLine = n === 0
-      ? 'Be the first to sign up'
-      : `<b>${n}</b> driver${n !== 1 ? 's' : ''} signed up`;
+    let signupLine = 'Sign-up count unavailable';
+    try {
+      const signups = await get('public_entries', `race_id=eq.${next.id}&status=neq.withdrawn&select=id`);
+      const n = signups.length;
+      signupLine = n === 0 ? 'Be the first to sign up' : `<b>${n}</b> driver${n !== 1 ? 's' : ''} signed up`;
+    } catch { /* Keep the available schedule; an unknown count is not zero. */ }
     nextEl.innerHTML = `
       <div class="hp-lbl">Next Points Race</div>
       <div class="hp-round">Round ${next.round}</div>
@@ -1129,7 +1140,7 @@ async function loadHome() {
   }
 
   // Points leader card + Top 5 standings (below hero)
-  if (drivers.length && results.length) {
+  if (drivers && results && drivers.length && results.length) {
     const pointsByDriver = {};
     results.forEach(r => {
       if (!pointsByDriver[r.driver_id]) pointsByDriver[r.driver_id] = 0;
@@ -1169,7 +1180,9 @@ async function loadHome() {
 }
 
 async function loadDrivers() {
-  const d = await get('public_drivers','select=*');
+  let d;
+  try { d = await get('public_drivers','select=*'); }
+  catch { showDataUnavailable('driver-grid', 'Drivers'); return; }
   // Order drivers by car number (numeric). Parsed client-side so the sort is
   // correct whether `number` is stored as text or int; ties/unparseable
   // numbers fall back to name order.
@@ -1230,6 +1243,7 @@ function switchSeason(season, btn) {
 
 async function loadPoints() {
   const season = currentSeason;
+  try {
   const [drivers, results, races] = await Promise.all([
     get('public_drivers','select=*'),
     get('results', 'select=*&season=eq.' + season),
@@ -1292,6 +1306,10 @@ async function loadPoints() {
       '<td class="nsc-hide-sm"><span class="nsc-stat">' + p.top10 + '</span></td>' +
       '</tr>';
   }).join('');
+  } catch {
+    document.getElementById('pts-round-label').textContent = '';
+    showDataUnavailable('pts-body', 'Standings', 9);
+  }
 }
 
 let allR=[];
@@ -1351,7 +1369,13 @@ let _signupDrivers = {};
 async function loadSignupDrivers(){
   const sel = document.getElementById('su-driver');
   if(!sel) return;
-  const drivers = await get('public_drivers','select=id,name,number&order=name.asc');
+  let drivers;
+  try { drivers = await get('public_drivers','select=id,name,number&order=name.asc'); }
+  catch {
+    sel.innerHTML = '<option value="">Driver list temporarily unavailable</option>';
+    showDataUnavailable('signup-msg', 'Online sign-up');
+    return;
+  }
   _signupDrivers = {};
   drivers.forEach(d=>{ _signupDrivers[d.id] = d; });
   sel.innerHTML = '<option value="">Select your name...</option>' +
@@ -1452,7 +1476,13 @@ async function submitSignup(){
 }
 
 async function loadRecords(){
-  const recs=await get('lap_records','select=*,drivers:public_drivers(name,number),races(name,round)&order=lap_time_seconds.asc');
+  let recs;
+  try { recs=await get('lap_records','select=*,drivers:public_drivers(name,number),races(name,round)&order=lap_time_seconds.asc'); }
+  catch {
+    showDataUnavailable('rec-body', 'Lap records', 5);
+    showDataUnavailable('club-13sec', '13 Second Club');
+    return;
+  }
   const tb=document.getElementById('rec-body');
 
   // 13 Second Club — sub-14 official times
@@ -1684,9 +1714,13 @@ async function toggleRaceResults(raceId, rowEl) {
     return;
   }
   resultsEl.querySelector('.race-results-inner').innerHTML = '<div class="rr-loading">Loading results...</div>';
+  try {
   const results = await get('results', 'select=*,drivers:public_drivers(name,number)&race_id=eq.'+raceId+'&order=position.asc');
   raceResultsCache[raceId] = results;
   renderRaceResultsInto(raceId, resultsEl.querySelector('.race-results-inner'));
+  } catch {
+    resultsEl.querySelector('.race-results-inner').innerHTML = '<div class="rr-empty" role="status">Results temporarily unavailable. Close and reopen to try again.</div>';
+  }
 }
 
 function renderRaceResultsInto(raceId, inner) {
@@ -1720,6 +1754,7 @@ async function showDriverProfile(id) {
   try { history.replaceState(null, '', '#driver/' + id); } catch(e) {}
   document.getElementById('profile-content').innerHTML = '<div class="loading">Loading</div>';
 
+  try {
   const [drivers, allResults, allRaces] = await Promise.all([
     get('public_drivers', `select=*&id=eq.${id}`),
     get('results', `select=*,races(name,round,race_date)&driver_id=eq.${id}&order=position.asc`),
@@ -1834,6 +1869,7 @@ async function showDriverProfile(id) {
       </div>`;
     }).join('')}` : ''}
   `;
+  } catch { showDataUnavailable('profile-content', 'Driver profile'); }
 }
 
 let sponsorsLoaded = false;
