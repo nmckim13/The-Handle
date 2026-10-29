@@ -39,6 +39,11 @@ function editor() {
         if (state.verifyFail) return reply({}, 403);
         return files.has(name) ? reply(files.get(name)) : reply({}, 404);
       }
+      if (options.method === 'PATCH') {
+        const body = JSON.parse(options.body); writes.push(body);
+        Object.assign(drivers.find(d => u.searchParams.get('id') === 'eq.' + d.id), body);
+        return reply([]);
+      }
       if (options.method === 'POST') {
         assert.ok(path.endsWith('/rpc/set_driver_photo'));
         const body = JSON.parse(options.body); writes.push(body);
@@ -119,4 +124,18 @@ test('photo conflicts require saved-photo review, removal keeps files, and misma
   const writes = app.writes.length; await app.run('savePhoto()');
   assert.equal(app.writes.length, writes); assert.equal(app.drivers[0].photo_url, null);
   assert.match(app.el('photo-message').textContent, /Stored file differs/);
+});
+
+test('public profile saves age without reading or rewriting private birthdays', async () => {
+  const app = editor(); await app.choose('alex');
+  app.el('f-age').value = '121';
+  await app.run('submitProfile()');
+  assert.equal(app.writes.length, 0);
+  assert.match(app.el('driver-load-message').textContent, /0 to 120/);
+  app.el('f-age').value = '0';
+  await app.run('submitProfile()');
+  assert.equal(app.writes.length, 1);
+  assert.equal(app.writes[0].age, 0);
+  assert.equal(Object.hasOwn(app.writes[0], 'birthday'), false);
+  assert.equal(app.drivers[0].birthday, '1990-02-03');
 });

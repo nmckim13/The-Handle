@@ -59,7 +59,8 @@
       },
       async post(table, data, opts = {}) {
         return withRetry(async () => {
-          const res = await fetch(`${url}/rest/v1/${table}`, {
+          const selection = opts.select ? `?select=${encodeURIComponent(opts.select)}` : '';
+          const res = await fetch(`${url}/rest/v1/${table}${selection}`, {
             method: 'POST',
             headers: { ...await headers(), 'Content-Type': 'application/json', Prefer: 'return=representation' },
             body: JSON.stringify(data)

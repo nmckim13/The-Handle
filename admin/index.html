@@ -361,14 +361,12 @@
       <div class="admin-logo">The Handle</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
-      <div class="admin-badge">Admin</div>
+      <div class="admin-badge">Public Admin</div>
       <a href="/" class="back-link">← Live site</a>
-      <button id="staff-signout" type="button" hidden>Sign out</button>
     </div>
   </div>
 </header>
 
-<section id="staff-auth" aria-label="Staff sign-in"></section>
 <div id="staff-content" hidden>
 <nav class="admin-nav" aria-label="Admin sections">
   <label class="admin-mobile-nav">
@@ -399,6 +397,7 @@
 </nav>
 
 <div class="admin-main">
+  <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px"><strong style="color:var(--yellow)">Public editing — no sign-in required.</strong> Saved changes and deletions affect the live website. Contact details, birthdays and waiver signatures remain private.</p>
 
   <!-- OVERVIEW -->
   <div class="admin-page active" id="ap-overview">
@@ -645,7 +644,7 @@
         </div>
       </div>
       <details id="profile-saved-review" class="card" hidden open><summary>Saved profile values — compare with your draft</summary><pre id="profile-saved-values" class="profile-note" style="white-space:pre-wrap"></pre></details>
-      <p class="profile-note">Blank fields remove saved text. Public age override is optional (0–120); when blank, the public page calculates age from a recorded birthday, if available. Birthday stays private and is never edited here. Photo links must use http:// or https://. Use the <a href="/profile-setup.html" target="_blank" rel="noopener">staff photo setup</a> for uploads; refresh &amp; review here after saving there.</p>
+      <p class="profile-note">Blank fields remove saved text. Public age override is optional (0–120); when blank, the public page calculates age from a recorded birthday, if available. Birthday stays private and is never edited here. Photo links must use http:// or https://. Use the <a href="/profile-setup.html" target="_blank" rel="noopener">photo setup</a> for uploads; refresh &amp; review here after saving there.</p>
       <p id="profile-validation" class="profile-note" role="status"></p>
       <p id="profile-feedback" class="profile-note" role="status" aria-live="polite"></p>
       <div class="profile-actions">
@@ -720,7 +719,6 @@
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="/admin-auth.js"></script>
 <script src="/race-night-client.js"></script>
 <script src="/driver-graphics.js"></script>
@@ -780,7 +778,7 @@
   // POPULATE SELECTS
   async function populateSelects() {
     const [drivers, races] = await Promise.all([
-      db.get('drivers', 'select=*&order=name.asc'),
+      db.get('drivers', 'select=id,name,number&order=name.asc'),
       db.get('races', 'select=*&order=race_date.desc')
     ]);
     const dSelects = ['rec-driver'];
@@ -1571,7 +1569,7 @@
     if (!raceId) { toast('Select a race first', true); return; }
     const [races, drivers] = await Promise.all([
       db.get('races', `select=*&id=eq.${raceId}`),
-      db.get('drivers', 'select=*&order=name.asc')
+      db.get('drivers', 'select=id,name,number&order=name.asc')
     ]);
     const race = races[0];
     if (!race) { toast('Race not found', true); return; }
@@ -1812,7 +1810,7 @@
   async function rnFetchState(raceId) {
     const [raceRows, entries, sessionsRaw, officialResults] = await Promise.all([
       db.get('races', `id=eq.${raceId}`),
-      db.get('entries', `race_id=eq.${raceId}&order=created_at.asc`),
+      db.get('entries', `select=id,race_id,driver_id,name,car_number,color,status,created_at&race_id=eq.${raceId}&order=created_at.asc`),
       db.get('race_sessions', `race_id=eq.${raceId}`),
       db.get('results', `race_id=eq.${raceId}&select=*,drivers(name,number)`)
     ]);
@@ -1891,10 +1889,10 @@
       const key = JSON.stringify(payload);
       // Keep the same receipt if an insert landed but its response was lost.
       const retry = checkIn.walkup?.key === key;
-      const dupes = await db.get('entries', `race_id=eq.${raceId}&car_number=eq.${encodeURIComponent(car_number)}&status=neq.withdrawn`);
+      const dupes = await db.get('entries', `select=id,name&race_id=eq.${raceId}&car_number=eq.${encodeURIComponent(car_number)}&status=neq.withdrawn`);
       if (!retry && dupes.length && !confirm(`#${car_number} is already registered as ${dupes[0].name}. Add another entry with the same number anyway?`)) { checkIn.message = 'Walk-up cancelled.'; return; }
       if (!retry) checkIn.walkup = { key, ref: newRef() };
-      await db.post('entries', { ...payload, client_ref: checkIn.walkup.ref }, { isDuplicate: isDuplicateRef });
+      await db.post('entries', { ...payload, client_ref: checkIn.walkup.ref }, { isDuplicate: isDuplicateRef, select: 'id' });
       checkIn.walkup = null;
       document.getElementById('rn-walkup-name').value = '';
       document.getElementById('rn-walkup-number').value = '';
@@ -2085,7 +2083,7 @@
       try {
         const state = await rnFetchState(raceId);
         if (state.sessions.some(s => s.session_type === 'heat')) { toast('Heats already drawn for this race night', true); return; }
-        const entries = await db.get('entries', `race_id=eq.${raceId}&status=eq.checked_in&order=created_at.asc`);
+        const entries = await db.get('entries', `select=id,race_id,driver_id,name,car_number,color,status,created_at&race_id=eq.${raceId}&status=eq.checked_in&order=created_at.asc`);
         if (RN.raceId !== raceId) return;
         if (!entries.length) { toast('No checked-in drivers yet', true); return; }
         const ranked = rnQualRank(entries, q);
@@ -2115,7 +2113,7 @@
       if (state.sessions.some(s => s.session_type === 'heat')) { toast('Heats already drawn for this race night', true); return; }
       const heatSize = parseInt(document.getElementById('rn-heat-size').value) || 8;
       const laps = parseInt(document.getElementById('rn-heat-laps').value) || 8;
-      const entries = await db.get('entries', `race_id=eq.${RN.raceId}&status=eq.checked_in&order=created_at.asc`);
+      const entries = await db.get('entries', `select=id,race_id,driver_id,name,car_number,color,status,created_at&race_id=eq.${RN.raceId}&status=eq.checked_in&order=created_at.asc`);
       if (!entries.length) { toast('No checked-in drivers yet', true); return; }
       const shuffled = shuffle(entries);
       const heats = [];
@@ -2616,13 +2614,12 @@
       const badge = wd ? '<span class="rn-badge withdrawn">Withdrawn</span>'
         : checked ? '<span class="rn-badge checked">✓ Checked In</span>'
         : '<span class="rn-badge pending">Registered</span>';
-      const contact = [e.email, e.phone].filter(Boolean).map(escapeHtml).join(' · ');
-      const meta = [contact, e.created_at ? 'signed up ' + rnTimeAgo(e.created_at) : ''].filter(Boolean).join(' · ');
+      const meta = e.created_at ? 'signed up ' + rnTimeAgo(e.created_at) : '';
       return `<div class="rn-entry${wd ? ' dim' : (checked ? ' done' : '')}">
         <div class="rn-entry-num" style="color:${safeColor(e.color)};display:flex;align-items:center">${rnNumG(e, 30)}</div>
         <div class="rn-entry-info">
           <div class="rn-entry-name">${escapeHtml(e.name)} ${badge}</div>
-          <div class="rn-entry-meta">${meta || 'walk-up / no contact info'}</div>
+          <div class="rn-entry-meta">${meta || 'walk-up'}</div>
         </div>
         <div class="rn-entry-actions">
           ${!checked && !wd ? `<button class="btn btn-primary" aria-label="Check in ${escapeHtml(e.name)}" onclick="rnEntryStatus('${e.id}','checked_in',this)">Check In</button>` : ''}
@@ -2873,7 +2870,7 @@
         rnCheckInBusy();
         return false;
       }
-      body.innerHTML = `<div class="error-box"><strong>Race Night data could not load.</strong> Check your connection and staff permissions, then reload this page.<br><br><span style="opacity:0.7;font-weight:600">${escapeHtml(e.message)}</span></div>`;
+      body.innerHTML = `<div class="error-box"><strong>Race Night data could not load.</strong> Check your connection and database setup, then reload this page.<br><br><span style="opacity:0.7;font-weight:600">${escapeHtml(e.message)}</span></div>`;
       return false;
     }
     if (raceId !== RN.raceId) return;
@@ -2959,7 +2956,7 @@
       // no longer exists.
       const officialResults = await db.get('results', `race_id=eq.${RN.raceId}&select=*`);
       if (officialResults.length) {
-        const driversList = await db.get('drivers', 'select=*');
+        const driversList = await db.get('drivers', 'select=id,starts,wins');
         for (const old of officialResults) {
           const driver = driversList.find(d => d.id === old.driver_id);
           if (!driver) continue;

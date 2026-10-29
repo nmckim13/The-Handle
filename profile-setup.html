@@ -139,18 +139,16 @@
       <div class="header-sub">The Handle · Westville, IN</div>
     </div>
     <div class="header-badge">Driver Setup</div>
-    <button id="staff-signout" type="button" hidden>Sign out</button>
   </div>
 </header>
 <div class="checkered-strip"></div>
 
 <main class="page-main">
 
-  <section id="staff-auth" aria-label="Staff sign-in"></section>
   <div id="staff-content" hidden>
   <div id="form-screen">
     <div class="page-title">Driver Profile Setup</div>
-    <p class="page-sub">Staff editor — select a driver to update their public YardKartz profile. Drivers should contact the track for profile changes.</p>
+    <p class="page-sub">Public editor — no sign-in required. Select a driver to update their public YardKartz profile. Saved changes are visible to everyone; birthdays remain private.</p>
 
     <div class="driver-select-hero">
       <label for="driver-select">Select driver</label>
@@ -202,8 +200,8 @@
             <input type="text" id="f-nickname" placeholder="The Iceman">
           </div>
           <div class="form-group">
-            <label>Birthday</label>
-            <input type="date" id="f-birthday">
+            <label>Public age (optional)</label>
+            <input type="number" id="f-age" min="0" max="120" step="1" placeholder="Leave blank for existing age calculation">
           </div>
           <div class="form-group">
             <label>Hometown</label>
@@ -318,7 +316,6 @@
   </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="/admin-auth.js"></script>
 <script src="/race-night-client.js"></script>
 <script>
@@ -371,7 +368,7 @@
     driverLoading = true; renderPhoto();
     document.getElementById('driver-load-message').textContent = 'Loading saved driver…';
     try {
-    const rows = await db.get('drivers', `select=*&id=eq.${encodeURIComponent(id)}`);
+    const rows = await db.get('drivers', `select=id,name,number,nickname,age,hometown,occupation,kart_make,kart_colors,sponsor,fav_condition,racing_style,pre_race_ritual,biggest_rival,career_highlight,bio,quote,photo_url&id=eq.${encodeURIComponent(id)}`);
     if (!rows[0]) throw new Error('Driver no longer exists.');
     selectedDriver = rows[0]; select.value = id;
     clearPhotoCandidate(); photo.remove = false; photo.request = null; photo.review = false; photo.generation++;
@@ -379,7 +376,7 @@
 
     document.getElementById('f-name').value = selectedDriver.name;
     document.getElementById('f-nickname').value = selectedDriver.nickname || '';
-    document.getElementById('f-birthday').value = selectedDriver.birthday || '';
+    document.getElementById('f-age').value = selectedDriver.age ?? '';
     document.getElementById('f-hometown').value = selectedDriver.hometown || '';
     document.getElementById('f-occupation').value = selectedDriver.occupation || '';
     document.getElementById('f-kart_make').value = selectedDriver.kart_make || '';
@@ -569,6 +566,11 @@
 
   async function submitProfile() {
     if (!selectedDriver || driverLoading || profileSaving || photo.busy || photo.preparing || photoDraft()) return;
+    const age = document.getElementById('f-age').value.trim();
+    if (age && (!/^(0|[1-9][0-9]{0,2})$/.test(age) || Number(age) > 120)) {
+      document.getElementById('driver-load-message').textContent = 'Public age must be a whole number from 0 to 120, or blank.';
+      return;
+    }
 
     const spinner = document.getElementById('submit-spinner');
     const label = document.getElementById('submit-label');
@@ -579,7 +581,7 @@
     try {
       const data = {
         nickname:        document.getElementById('f-nickname').value.trim() || null,
-        birthday:        document.getElementById('f-birthday').value || null,
+        age:             age === '' ? null : Number(age),
         hometown:        document.getElementById('f-hometown').value.trim() || null,
         occupation:      document.getElementById('f-occupation').value.trim() || null,
         kart_make:       document.getElementById('f-kart_make').value.trim() || null,

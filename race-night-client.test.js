@@ -101,3 +101,17 @@ test('a cancelled board read aborts instead of retrying an expired snapshot', as
   await assert.rejects(client.get('live_state', '', { signal: controller.signal }), { name: 'AbortError' });
   assert.equal(attempts, 1);
 });
+
+test('anonymous walk-up creation returns selected safe fields without requesting private columns', async () => {
+  const scope = { window: {}, URL };
+  scope.fetch = async (url, options) => {
+    assert.equal(url, 'https://example.com/rest/v1/entries?select=id');
+    assert.equal(options.headers.Authorization, 'Bearer public-key');
+    assert.equal(options.headers.Prefer, 'return=representation');
+    assert.deepEqual(JSON.parse(options.body), { name: 'Walk-up', client_ref: 'stable-ref' });
+    return { ok: true, json: async () => [{ id: 'entry-id' }] };
+  };
+  runInNewContext(readFileSync(`${__dirname}/race-night-client.js`, 'utf8'), scope);
+  const client = scope.window.RaceNight.createClient('https://example.com', 'public-key');
+  assert.deepEqual(await client.post('entries', { name: 'Walk-up', client_ref: 'stable-ref' }, { select: 'id' }), [{ id: 'entry-id' }]);
+});
