@@ -15,6 +15,13 @@ test('registered graphics and trimmed names retain their image', () => {
   assert.equal(graphics.hasGraphic(' Kelton '), true);
   assert.match(graphics.numHtml('Kelton', 73, 48), /src="\/kelton73.png"/);
   assert.ok(readFileSync(join(__dirname, 'kelton73.png')).length > 0);
+  for (const [name, number, file] of [['Chase Bice', 18, 'chase18.png'], ['Daren Miller', 10, 'daren10.png']]) {
+    assert.equal(graphics.hasGraphic(` ${name} `), true);
+    const html = graphics.numHtml(name, number, 48);
+    assert.ok(html.includes(`src="/${file}"`));
+    assert.ok(html.includes(`alt="${number}"`));
+    assert.deepEqual(readFileSync(join(__dirname, file)).subarray(0, 8), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  }
 });
 
 test('unknown and inherited property names render text, including zero and missing numbers', () => {

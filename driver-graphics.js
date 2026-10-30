@@ -42,7 +42,9 @@
     'Jordan Sculley': { src: 'jordan23.png',    blend: 'lighten' },
     'Cole V':         { src: 'colev25.png',     blend: 'lighten' },
     'Matthew Deyoung':{ src: 'matthew51.png',   blend: 'lighten' },
-    'Kelton':         { src: 'kelton73.png',    blend: 'lighten' }
+    'Kelton':         { src: 'kelton73.png',    blend: 'lighten' },
+    'Chase Bice':     { src: 'chase18.png',     blend: 'normal' },
+    'Daren Miller':   { src: 'daren10.png',     blend: 'normal' }
   };
 
   function graphicFor(name) {
