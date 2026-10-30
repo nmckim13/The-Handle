@@ -148,6 +148,47 @@
   .hp-signup-count { margin-top: 8px; font-size: 12px; font-weight: 800; color: var(--text2); text-align: center; }
   .hp-signup-count b { color: var(--yellow); }
 
+  /* Seasonal treatment follows the Halloween event, not the visitor's clock. */
+  .hp-halloween { position: relative; isolation: isolate; overflow: hidden; border-top-color: #ff931f; background: radial-gradient(ellipse at top right, #35174c, transparent 75%), #100d14; }
+  .hp-halloween::before, .hp-halloween::after { content: ''; position: absolute; z-index: -1; pointer-events: none; width: 150px; height: 150px; opacity: .55; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160' fill='none' stroke='%239157bd' stroke-width='1'%3E%3Cpath d='M0 160V0L61 148M0 0L113 113M0 0L148 61M0 0H160M0 32Q7 24 12 30Q16 22 23 23Q22 16 30 12Q24 7 32 0M0 64Q14 48 24 59Q32 44 45 45Q44 32 59 24Q48 14 64 0M0 96Q21 72 37 89Q48 66 68 68Q66 48 89 37Q72 21 96 0M0 128Q28 96 49 118Q64 88 91 91Q88 64 118 49Q96 28 128 0M0 160Q35 120 61 148Q80 110 113 113Q110 80 148 61Q120 35 160 0'/%3E%3C/svg%3E") center / contain no-repeat; }
+  .hp-halloween::before { top: 0; right: 0; transform: scaleX(-1); }
+  .hp-halloween::after { bottom: 0; left: 0; width: 100px; height: 100px; opacity: .25; transform: scaleY(-1); }
+  .hp-halloween .hp-lbl, .hp-halloween .hp-date-big, .hp-halloween .hp-signup-count b { color: #ff931f; }
+  .hp-halloween .hp-round { color: #d5b4f1; }
+  .hp-halloween .hp-location, .hp-halloween .hp-signup-count { color: #c3b5ce; }
+  .hp-halloween .hp-countdown { color: #e3caff; background: #291737; border-color: #72418d; }
+  .hp-halloween .hp-signup-btn { background: #ff931f; color: #170c04; }
+  .hp-halloween .hp-signup-btn:hover { background: #ffb254; }
+  .hp-halloween .hp-signup-btn:focus-visible { outline: 3px solid #d5b4f1; outline-offset: 3px; }
+
+  /* SEASON PODIUM */
+  .season-podium { position: relative; overflow: hidden; padding: 30px 28px 24px; border-top: 4px solid #e9c45b; text-align: center; background: radial-gradient(ellipse at 50% 45%, #4b391c55, transparent 65%), linear-gradient(120deg, #b3903222, transparent 28%, transparent 72%, #b3903222), #100f0c; }
+  .season-podium[hidden], .hero-panels[hidden] { display: none; }
+  .season-podium::after { content: ''; position: absolute; inset: auto 0 0; height: 10px; opacity: .16; pointer-events: none; background: repeating-conic-gradient(#f2d98e 0% 25%, transparent 0% 50%) 0 0 / 20px 20px; }
+  .podium-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 2.5px; text-transform: uppercase; color: #e9c45b; }
+  .podium-title { font-size: clamp(28px, 4vw, 40px); font-weight: 900; line-height: 1.1; text-transform: uppercase; margin: 7px 0 8px; }
+  .podium-sub { color: #bcb4a4; font-size: 12px; font-weight: 700; }
+  .podium-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 12px; margin: 30px 0 22px; }
+  .podium-place { --medal: #c5cedb; min-width: 0; grid-row: 1; }
+  .podium-place-1 { --medal: #f4cf65; grid-column: 2; }
+  .podium-place-2 { grid-column: 1; }
+  .podium-place-3 { --medal: #d99a6c; grid-column: 3; }
+  .podium-rank { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--medal); }
+  .podium-number { position: relative; display: flex; align-items: center; justify-content: center; height: 88px; max-width: 260px; margin: 0 auto; }
+  .podium-number .dg-num-img { max-width: 100%; max-height: 70px; height: auto !important; }
+  .podium-place-1 .podium-number { height: 106px; padding: 0 36px; }
+  .podium-place-1 .podium-number::before, .podium-place-1 .podium-number::after { content: ''; position: absolute; top: 7px; left: 0; width: 38px; height: 94px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 110' fill='%23e9c45b'%3E%3Cpath d='M40 106C7 82 7 36 34 5' fill='none' stroke='%23e9c45b' stroke-width='2'/%3E%3Cpath d='M32 95Q8 99 8 77Q23 77 32 95M23 79Q0 76 4 56Q20 61 23 79M19 60Q0 51 10 34Q23 43 19 60M22 40Q7 25 22 12Q31 26 22 40M30 23Q23 5 40 1Q42 16 30 23M32 95Q24 74 40 70Q47 86 32 95M23 79Q18 57 34 55Q40 69 23 79M19 60Q20 39 35 40Q38 54 19 60'/%3E%3C/svg%3E") center / contain no-repeat; }
+  .podium-place-1 .podium-number::after { left: auto; right: 0; transform: scaleX(-1); }
+  .podium-name { font-size: clamp(16px, 2.3vw, 22px); font-weight: 900; line-height: 1.15; margin: 5px 0 7px; overflow-wrap: anywhere; }
+  .podium-points { font-size: 30px; font-weight: 900; line-height: 1; color: var(--medal); margin-bottom: 17px; }
+  .podium-points span { font-size: 11px; letter-spacing: 1px; margin-left: 4px; }
+  .podium-plinth { height: 70px; display: flex; align-items: center; justify-content: center; font-size: 38px; font-weight: 900; color: var(--medal); border: 1px solid color-mix(in srgb, var(--medal) 65%, transparent); border-top: 4px solid var(--medal); border-radius: 4px 4px 0 0; background: linear-gradient(120deg, #ffffff16, #0006 55%, #ffffff0a), color-mix(in srgb, var(--medal) 15%, #141414); text-shadow: 0 2px 2px #000; }
+  .podium-place-1 .podium-plinth { height: 108px; box-shadow: 0 0 26px #e9c45b19; }
+  .podium-place-3 .podium-plinth { height: 48px; }
+  .podium-standings-btn { border: 1px solid #e9c45b; border-radius: 7px; padding: 12px 22px; background: #e9c45b; color: #17120a; font: 900 12px 'Archivo', sans-serif; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; }
+  .podium-standings-btn:hover { background: #ffe397; }
+  .podium-standings-btn:focus-visible { outline: 3px solid white; outline-offset: 4px; }
+
   /* STANDINGS */
   .nsc-subhdr { font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--red); margin-bottom: 14px; margin-top: 3px; }
   .nsc-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -287,6 +328,17 @@
     .hp-date-big{font-size:36px}
     .nsc-hide-sm{display:none}
     .nsc-tbl .dg-num-img{max-width:64px}
+    .season-podium{padding:24px 16px}
+    .podium-eyebrow{font-size:10px;letter-spacing:1.5px}
+    .podium-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 12px;margin-top:22px}
+    .podium-place-1{grid-column:1/-1;max-width:280px;width:100%;justify-self:center}
+    .podium-place-2{grid-row:2;grid-column:1}
+    .podium-place-3{grid-row:2;grid-column:2}
+    .podium-place-1 .podium-plinth{height:64px}
+    .podium-place-2 .podium-plinth,.podium-place-3 .podium-plinth{height:46px}
+    .podium-rank{font-size:10px;letter-spacing:1px}
+    .podium-name{font-size:17px}
+    .podium-points{font-size:26px}
   }
 
   /* WEATHER */
@@ -479,7 +531,8 @@
   <!-- HOME -->
   <div class="page active" id="page-home">
     <div class="hero">
-      <div class="hero-panels">
+      <section class="season-podium" id="home-podium" aria-label="2026 championship podium" hidden></section>
+      <div class="hero-panels" id="home-race-panels">
         <div class="hero-panel hp-left" id="home-winner"><div class="loading">Loading</div></div>
         <div class="hero-vdivider"></div>
         <div class="hero-panel hp-right" id="home-nextrace"><div class="loading">Loading</div></div>
@@ -1098,6 +1151,7 @@ function seasonStandings(drivers, results, races, season) {
     .sort((a, b) => b.total - a.total || b.wins - a.wins);
 }
 
+let homePodiumMarkup = '';
 async function loadHome() {
   const reads = await Promise.allSettled([
     get('public_drivers','select=*&order=wins.desc'),
@@ -1109,6 +1163,52 @@ async function loadHome() {
   document.getElementById('sc-drivers').textContent = drivers ? drivers.length : '—';
   const past = races ? races.filter(r=>r.status==='past' && r.race_date?.startsWith('2026')) : [];
   document.getElementById('sc-races').textContent = races ? past.length : '—';
+
+  const sorted = drivers && results && races ? seasonStandings(drivers, results, races, 2026).filter(s => s.starts > 0) : [];
+  const seasonRaces = (races || []).filter(r => r.season === 2026 && r.status !== 'canceled');
+  const finale = [...seasonRaces].sort((a, b) => String(b.race_date).localeCompare(String(a.race_date)) || b.round - a.round)[0];
+  const seasonFinished = seasonRaces.length > 0 && seasonRaces.every(r => r.status === 'past');
+  let published = false, publicationUnavailable = false;
+  if (seasonFinished && results?.some(r => r.race_id === finale.id && r.position === 1)) {
+    try {
+      // Official publication atomically saves the finishes, completes the race,
+      // and sets this public race state. A manually saved finish is not enough.
+      const [state] = await get('live_state', `select=race_id,is_live,current_stage&race_id=eq.${finale.id}`);
+      published = state?.is_live === false && state.current_stage === 'complete';
+    } catch { publicationUnavailable = true; }
+  }
+  // Keep the existing points/wins tiebreak; never invent a podium order for an
+  // unresolved tie, including a tie between third and fourth.
+  const podiumTied = sorted.slice(0, 3).some((s, i) => sorted[i + 1] && s.total === sorted[i + 1].total && s.wins === sorted[i + 1].wins);
+  const showPodium = published && sorted.length >= 3 && !podiumTied;
+  const podium = document.getElementById('home-podium');
+  podium.hidden = !showPodium;
+  document.getElementById('home-race-panels').hidden = showPodium;
+  document.getElementById('home-leader').style.display = showPodium ? 'none' : '';
+  document.getElementById('lbl-leader').style.display = 'none';
+  document.getElementById('lbl-top5').textContent = showPodium ? 'Final Standings · Top 5' : 'Top 5 Standings';
+  if (showPodium) {
+    const html = `<div class="podium-eyebrow">2026 Stock Predator Championship</div>
+      <h2 class="podium-title">Season complete</h2>
+      <div class="podium-sub">The Handle · Westville, IN</div>
+      <div class="podium-grid">${sorted.slice(0, 3).map((s, i) => `
+        <article class="podium-place podium-place-${i + 1}">
+          <div class="podium-rank">${['Season champion', '2nd place', '3rd place'][i]}</div>
+          <div class="podium-number">${getDriverNumEl(s.driver.name, s.driver.number, i === 0 ? 78 : 66)}</div>
+          <h3 class="podium-name">${escapeHtml(s.driver.name)}</h3>
+          <div class="podium-points">${s.total}<span>pts</span></div>
+          <div class="podium-plinth" aria-hidden="true">${i + 1}</div>
+        </article>`).join('')}</div>
+      <button class="podium-standings-btn" onclick="switchSeason(2026,document.querySelector('#page-points .tab-btn'));showPage('points')">View final standings →</button>`;
+    // Polling must not replace an unchanged focused button.
+    if (homePodiumMarkup !== html) {
+      podium.innerHTML = html;
+      homePodiumMarkup = html;
+    }
+  } else {
+    podium.innerHTML = '';
+    homePodiumMarkup = '';
+  }
 
   // LEFT PANEL — last race winner
   const last = [...past].sort((a,b)=>new Date(b.race_date)-new Date(a.race_date))[0];
@@ -1136,8 +1236,9 @@ async function loadHome() {
   }
 
   // RIGHT PANEL — next race with countdown
-  const next = races?.find(r=>r.status==='upcoming');
+  const next = races?.find(r=>r.status==='upcoming' && r.season===2026);
   const nextEl = document.getElementById('home-nextrace');
+  nextEl.classList.toggle('hp-halloween', /halloween/i.test(next?.name || ''));
   if (!races) {
     showDataUnavailable('home-nextrace', 'Schedule');
   } else if (next) {
@@ -1160,18 +1261,23 @@ async function loadHome() {
       <button class="hp-signup-btn" onclick="goToSignup('${next.id}')">Sign Up for This Race →</button>
       <div class="hp-signup-count">${signupLine}</div>`;
   } else {
-    nextEl.innerHTML = `<div class="hp-lbl">Next Points Race</div><div style="color:var(--text2);font-size:14px;padding-top:12px">Schedule TBD</div>`;
+    const message = seasonFinished ? publicationUnavailable || !drivers || !results ? 'Final standings temporarily unavailable. Please try again later.' : published && podiumTied ? 'Championship tie — final order awaiting confirmation.' : 'Awaiting official results.' : 'Schedule TBD';
+    nextEl.innerHTML = `<div class="hp-lbl">${seasonFinished ? 'Season finale' : 'Next Points Race'}</div><div style="color:var(--text2);font-size:14px;padding-top:12px">${message}</div>`;
   }
 
   // Points leader card + Top 5 standings (below hero)
+  if (!sorted.length) {
+    document.getElementById('home-leader').innerHTML = '';
+    document.getElementById('home-top5').innerHTML = '';
+    document.getElementById('lbl-top5').style.display = 'none';
+    if (!drivers || !races || !results) showDataUnavailable('home-top5', 'Standings');
+  }
   if (drivers && results && races && drivers.length && results.length) {
-    const sorted = seasonStandings(drivers, results, races, 2026).filter(s => s.starts > 0);
-
     if (sorted.length) {
       const top = sorted[0].driver;
       const pts = sorted[0].total;
       const wins = sorted[0].wins;
-      document.getElementById('lbl-leader').style.display = 'block';
+      document.getElementById('lbl-leader').style.display = showPodium ? 'none' : 'block';
       document.getElementById('home-leader').innerHTML = `<div class="leader-card"><div class="leader-num">${getDriverNumEl(top.name, top.number, 56)}</div><div><div class="leader-name">${escapeHtml(top.name)}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
 
       const posClasses = ['p1','p2','p3','px','px'];
@@ -1194,6 +1300,18 @@ async function loadHome() {
     }
   }
 }
+
+let homeRefreshing = false;
+async function refreshHome() {
+  if (homeRefreshing || document.hidden || navigator.onLine === false || !document.getElementById('page-home').classList.contains('active')) return;
+  homeRefreshing = true;
+  try { await loadHome(); }
+  finally { homeRefreshing = false; }
+}
+setInterval(refreshHome, 30000);
+window.addEventListener('online', refreshHome);
+window.addEventListener('focus', refreshHome);
+document.addEventListener('visibilitychange', refreshHome);
 
 async function loadDrivers() {
   let d;

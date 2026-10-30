@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const { runInNewContext } = require('node:vm');
 
 function dashboard(data = {}) {
-  const elements = new Map(), requests = [];
+  const elements = new Map(), requests = [], intervals = [];
   const state = { missingViews: true, raceFailure: false, countFailure: false };
   const driver = { id: 'driver73', name: 'Kelton', number: '73', color: '#fff' };
   const drivers = data.drivers || [driver];
@@ -13,26 +13,33 @@ function dashboard(data = {}) {
     { id: 'next', name: 'Next race', status: 'upcoming', race_date: '2026-11-01', round: 3, season: 2026 }
   ];
   function el(id) {
-    if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', value: '', style: {},
-      classList: { add() {}, remove() {}, contains: () => false }, querySelector: () => el(id + '-child') });
+    if (!elements.has(id)) {
+      const classes = new Set();
+      elements.set(id, { innerHTML: '', textContent: '', value: '', style: {},
+        classList: {
+          add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name),
+          toggle(name, force = !classes.has(name)) { if (force) classes.add(name); else classes.delete(name); return force; }
+        }, querySelector: () => el(id + '-child') });
+    }
     return elements.get(id);
   }
   const scope = {
     window: { addEventListener() {}, LiveBoard: { create: () => ({}) } },
     document: { hidden: false, getElementById: el, querySelectorAll: () => [], addEventListener() {} },
     navigator: { onLine: true }, location: { hash: '' }, history: { replaceState() {} },
-    URL, AbortController, setTimeout, clearTimeout, setInterval() {},
+    URL, AbortController, setTimeout, clearTimeout, setInterval(callback, ms) { intervals.push({ callback, ms }); },
     fetch: async (url, options = {}) => {
       const u = new URL(url), table = u.pathname.split('/').pop();
       requests.push({ table, method: options.method || 'GET' });
       const failed = state.raceFailure && table === 'races' ||
         (state.missingViews && (table === 'public_drivers' || table === 'public_entries' ||
           u.searchParams.get('select')?.includes('public_drivers'))) ||
-        state.countFailure && table === 'public_entries';
+        state.countFailure && table === 'public_entries' || state.publicationFailure && table === 'live_state';
       let rows = table === 'public_drivers' ? drivers : table === 'races' ? races :
         table === 'results' ? data.results || [{ race_id: 'past', driver_id: driver.id, position: 1, points: 35, season: 2026 }] :
+        table === 'live_state' ? data.liveState || [] :
         table === 'public_entries' ? [{ id: 'a' }, { id: 'b' }, { id: 'c' }] : [];
-      for (const field of ['id', 'driver_id', 'season']) {
+      for (const field of ['id', 'driver_id', 'season', ...(table === 'live_state' ? ['race_id'] : [])]) {
         const filter = u.searchParams.get(field);
         if (filter?.startsWith('eq.')) rows = rows.filter(r => String(r[field]) === filter.slice(3));
       }
@@ -47,8 +54,123 @@ function dashboard(data = {}) {
   const html = readFileSync(`${__dirname}/index.html`, 'utf8');
   const script = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].find(m => m[1].trim())[1];
   runInNewContext(script, scope);
-  return { el, requests, state, run: code => runInNewContext(code, scope) };
+  return { el, requests, state, intervals, run: code => runInNewContext(code, scope) };
 }
+
+test('home switches to the adjusted season podium only after finale publication, and refreshes corrections automatically', async () => {
+  const races = Array.from({ length: 6 }, (_, i) => ({ id: 'r' + i, name: i === 5 ? 'Halloween Race' : 'Points race', round: i + 1, season: 2026, status: i === 5 ? 'upcoming' : 'past', race_date: `2026-${String(i + 5).padStart(2, '0')}-01` }));
+  races.push({ id: 'canceled', season: 2026, status: 'canceled', race_date: '2026-12-01' }, { id: 'next-year', season: 2027, status: 'upcoming', race_date: '2027-05-01' });
+  const scores = { Full: [35, 29, 26, 23, 20, 12], Missed: [32, 32, 29, 26, 20], Third: [29, 26, 23, 20, 14, 8], Fourth: [26, 23, 20, 14, 12, 0] };
+  const drivers = Object.keys(scores).map(name => ({ id: name, name, number: '1' }));
+  const results = Object.entries(scores).flatMap(([driver_id, points]) => points.map((points, i) => ({ race_id: 'r' + i, driver_id, points, position: i + 1, season: 2026 })));
+  results.find(r => r.driver_id === 'Third' && r.race_id === 'r5').position = 1;
+  const liveState = [{ race_id: 'r5', current_stage: 'feature', is_live: true }];
+  const app = dashboard({ drivers, races, results, liveState });
+  app.state.missingViews = false;
+  app.el('page-home').classList.add('active');
+  await app.run('loadHome()');
+  assert.equal(app.el('home-podium').hidden, true, 'partial results must not crown a champion');
+  assert.equal(app.el('home-race-panels').hidden, false);
+  assert.ok(app.el('home-nextrace').classList.contains('hp-halloween'));
+
+  races[5].status = 'past';
+  await app.run('loadHome()');
+  assert.equal(app.el('home-podium').hidden, true, 'changing schedule status alone is not publication');
+  assert.match(app.el('home-nextrace').innerHTML, /Awaiting official results/);
+  liveState[0].current_stage = 'complete';
+  liveState[0].is_live = false;
+  const poll = app.intervals.find(i => i.ms === 30000 && i.callback.name === 'refreshHome');
+  assert.ok(poll, 'open homepages must refresh after publication without a reload');
+  const before = app.requests.length;
+  await app.run('document.hidden = true');
+  await poll.callback();
+  await app.run('document.hidden = false; navigator.onLine = false');
+  await poll.callback();
+  await app.run('navigator.onLine = true');
+  app.el('page-home').classList.remove('active');
+  await poll.callback();
+  assert.equal(app.requests.length, before, 'background, offline and non-home pages do not poll');
+  app.el('page-home').classList.add('active');
+  await poll.callback();
+  assert.equal(app.el('home-podium').hidden, false);
+  assert.equal(app.el('home-race-panels').hidden, true);
+  const podium = app.el('home-podium').innerHTML;
+  assert.match(podium, /Season complete/);
+  assert.match(podium, /Season champion[\s\S]*?Missed[\s\S]*?139/);
+  assert.match(podium, /2nd place[\s\S]*?Full[\s\S]*?133/);
+  assert.match(podium, /3rd place[\s\S]*?Third[\s\S]*?112/);
+  assert.doesNotMatch(podium, /Drop:|\(missed\)|Fourth/);
+  assert.equal(app.el('home-leader').style.display, 'none');
+  assert.match(app.el('lbl-top5').textContent, /Final/);
+
+  results.find(r => r.driver_id === 'Full' && r.race_id === 'r5').points = 35;
+  await poll.callback();
+  assert.match(app.el('home-podium').innerHTML, /Season champion[\s\S]*?Full[\s\S]*?148/);
+  app.state.publicationFailure = true;
+  await poll.callback();
+  assert.equal(app.el('home-podium').hidden, true, 'failed publication checks cannot show final honors');
+  assert.match(app.el('home-nextrace').innerHTML, /temporarily unavailable/);
+  app.state.publicationFailure = false;
+  await poll.callback();
+  assert.equal(app.el('home-podium').hidden, false);
+  races[5].status = 'upcoming';
+  await poll.callback();
+  assert.equal(app.el('home-podium').hidden, true, 'reopening the finale restores the race preview');
+  assert.equal(app.el('home-leader').style.display, '');
+  app.state.missingViews = true;
+  await poll.callback();
+  assert.equal(app.el('home-podium').hidden, true);
+  assert.match(app.el('home-top5').innerHTML, /Standings temporarily unavailable/);
+  assert.equal(app.el('home-leader').innerHTML, '');
+  app.state.missingViews = false;
+  results.length = 0;
+  await poll.callback();
+  assert.equal(app.el('home-podium').hidden, true);
+  assert.equal(app.el('home-top5').innerHTML, '');
+  assert.ok(app.requests.every(r => r.method === 'GET'));
+});
+
+test('a missing finale winner or unresolved championship tie never produces a season podium', async () => {
+  const races = [{ id: 'finale', season: 2026, round: 7, status: 'past', race_date: '2026-10-30' }];
+  const drivers = ['One', 'Two', 'Three', 'Four'].map(name => ({ id: name, name, number: '1' }));
+  const results = drivers.map((d, i) => ({ race_id: 'finale', driver_id: d.id, points: 35 - i * 3, position: i + 2, season: 2026 }));
+  const liveState = [{ race_id: 'finale', current_stage: 'complete', is_live: false }];
+  const app = dashboard({ drivers, races, results, liveState });
+  app.state.missingViews = false;
+  await app.run('loadHome()');
+  assert.equal(app.el('home-podium').hidden, true);
+  results[0].position = 1;
+  await app.run('loadHome()');
+  // One completed round drops to zero for everyone, but One wins the wins tiebreak.
+  // The remaining tied podium places still cannot be invented from driver read order.
+  assert.equal(app.el('home-podium').hidden, true);
+  assert.match(app.el('home-nextrace').innerHTML, /tie[\s\S]*awaiting confirmation/);
+  liveState[0].race_id = 'different-race';
+  await app.run('loadHome()');
+  assert.equal(app.el('home-podium').hidden, true);
+  assert.match(app.el('home-nextrace').innerHTML, /Awaiting official results/);
+});
+
+test('Halloween styling follows the next race and clears when the event changes or schedule is unavailable', async () => {
+  const races = [{ id: 'next', name: 'Halloween Race', status: 'upcoming', race_date: '2026-10-30', round: 7, season: 2026 }];
+  const app = dashboard({ races });
+  app.state.missingViews = false;
+  await app.run('loadHome()');
+  assert.ok(app.el('home-nextrace').classList.contains('hp-halloween'));
+  assert.match(app.el('home-nextrace').innerHTML, /Halloween Race/);
+  assert.match(app.el('home-nextrace').innerHTML, /goToSignup\('next'\)/);
+  assert.match(app.el('home-nextrace').innerHTML, /<b>3<\/b> drivers/);
+  races[0].name = 'Season Opener';
+  await app.run('loadHome()');
+  assert.ok(!app.el('home-nextrace').classList.contains('hp-halloween'));
+  races[0].name = 'HALLOWEEN FINALE';
+  await app.run('loadHome()');
+  assert.ok(app.el('home-nextrace').classList.contains('hp-halloween'));
+  app.state.raceFailure = true;
+  await app.run('loadHome()');
+  assert.ok(!app.el('home-nextrace').classList.contains('hp-halloween'));
+  assert.match(app.el('home-nextrace').innerHTML, /Schedule temporarily unavailable/);
+});
 
 test('missing safe views leave available races visible and replace rejected public loaders without legacy reads', async () => {
   const app = dashboard();
