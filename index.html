@@ -512,6 +512,7 @@
     </div>
     <div class="sect-lbl" id="pts-season-label" style="margin-bottom:2px">2026 Championship Standings</div>
     <div class="nsc-subhdr" id="pts-round-label"></div>
+    <p id="pts-drop-rule" style="font-size:13px;color:var(--text2);margin-bottom:14px"></p>
     <div class="tbl-wrap">
       <table class="nsc-tbl">
         <thead>
@@ -556,7 +557,7 @@
     <div class="info-card" style="margin-top:12px">
       <h3>Important Notes</h3>
       <p>· Points awarded to A-Main finishers only — must finish in entirety</p>
-      <p>· <strong style="color:var(--orange)">1 throw-away round per driver allowed</strong> for the season</p>
+      <p>· <strong style="color:var(--orange)">Lowest round dropped for every driver.</strong> Missed races count as zero; canceled and upcoming races do not count. Five of six rounds count when the season is complete.</p>
       <p>· Membership fee: $75, due by May 10, 2026 or first film day</p>
       <p>· Minimum 8 hrs/season of track/equipment maintenance required</p>
     </div>
@@ -1074,6 +1075,28 @@ function showDataUnavailable(id, label, columns) {
   document.getElementById(id).innerHTML = columns ? `<tr><td colspan="${columns}">${message}</td></tr>` : message;
 }
 
+function seasonStandings(drivers, results, races, season) {
+  const completed = new Set(races.filter(r => r.season === season && r.status === 'past').map(r => r.id));
+  const stats = new Map(drivers.map(driver => [driver.id, { driver, total: 0, starts: 0, wins: 0, top5: 0, top10: 0, scores: new Map() }]));
+  results.forEach(r => {
+    const s = stats.get(r.driver_id);
+    if (!s || (season === 2026 && !completed.has(r.race_id))) return;
+    s.total += r.points || 0;
+    s.scores.set(r.race_id, r.points || 0);
+    s.starts++;
+    if (r.position === 1) s.wins++;
+    if (r.position <= 5) s.top5++;
+    if (r.position <= 10) s.top10++;
+  });
+  if (season === 2026 && completed.size) {
+    stats.forEach(s => {
+      s.total -= s.scores.size < completed.size ? 0 : Math.min(...s.scores.values());
+    });
+  }
+  return [...stats.values()].filter(s => season !== 2025 || s.total > 0)
+    .sort((a, b) => b.total - a.total || b.wins - a.wins);
+}
+
 async function loadHome() {
   const reads = await Promise.allSettled([
     get('public_drivers','select=*&order=wins.desc'),
@@ -1140,21 +1163,13 @@ async function loadHome() {
   }
 
   // Points leader card + Top 5 standings (below hero)
-  if (drivers && results && drivers.length && results.length) {
-    const pointsByDriver = {};
-    results.forEach(r => {
-      if (!pointsByDriver[r.driver_id]) pointsByDriver[r.driver_id] = 0;
-      pointsByDriver[r.driver_id] += (r.points || 0);
-    });
-    const sorted = Object.entries(pointsByDriver)
-      .sort((a,b) => b[1]-a[1])
-      .map(([id, pts]) => ({ driver: drivers.find(d => d.id === id), pts }))
-      .filter(x => x.driver);
+  if (drivers && results && races && drivers.length && results.length) {
+    const sorted = seasonStandings(drivers, results, races, 2026).filter(s => s.starts > 0);
 
     if (sorted.length) {
       const top = sorted[0].driver;
-      const pts = sorted[0].pts;
-      const wins = results.filter(r => r.driver_id === top.id && r.position === 1).length;
+      const pts = sorted[0].total;
+      const wins = sorted[0].wins;
       document.getElementById('lbl-leader').style.display = 'block';
       document.getElementById('home-leader').innerHTML = `<div class="leader-card"><div class="leader-num">${getDriverNumEl(top.name, top.number, 56)}</div><div><div class="leader-name">${escapeHtml(top.name)}</div><div class="leader-sub">${pts} pts · ${wins} wins this season</div><div class="leader-badge">Leading the pack</div></div></div>`;
 
@@ -1171,7 +1186,7 @@ async function loadHome() {
           '<td><span class="nsc-pos ' + posClasses[i] + '">' + (i+1) + '</span></td>' +
           '<td>' + getDriverNumEl(item.driver.name, item.driver.number, 28) + '</td>' +
           '<td class="td-left"><span class="nsc-driver-name">' + escapeHtml(item.driver.name) + '</span></td>' +
-          '<td><span class="nsc-pts">' + item.pts + '</span></td>' +
+          '<td><span class="nsc-pts">' + item.total + '</span></td>' +
           '</tr>'
         ).join('') +
         '</tbody></table></div>';
@@ -1247,37 +1262,17 @@ async function loadPoints() {
   const [drivers, results, races] = await Promise.all([
     get('public_drivers','select=*'),
     get('results', 'select=*&season=eq.' + season),
-    get('races', 'select=id,round,status,race_date&order=race_date.asc')
+    get('races', 'select=id,round,season,status,race_date&order=race_date.asc')
   ]);
 
   // "Through Round X" subheader
-  const pastRaces = races.filter(r => r.status==='past' && r.race_date?.startsWith(season.toString()));
+  const pastRaces = races.filter(r => r.status==='past' && r.season === season);
   const lastRound = pastRaces.length ? pastRaces[pastRaces.length-1].round : 0;
-  document.getElementById('pts-round-label').textContent = lastRound ? 'Through Round ' + lastRound + ' of 8' : '';
+  document.getElementById('pts-round-label').textContent = lastRound ? 'Through Round ' + lastRound : '';
+  document.getElementById('pts-drop-rule').textContent = season === 2026
+    ? `Best ${Math.max(0, pastRaces.length - 1)} of ${pastRaces.length} completed rounds count. Lowest round dropped; missed races count as 0. Canceled and upcoming races excluded.` : '';
 
-  // Aggregate per-driver stats
-  const stats = {};
-  if (season === 2026) {
-    drivers.forEach(d => { stats[d.id] = {driver:d, total:0, starts:0, wins:0, top5:0, top10:0}; });
-  }
-  results.forEach(r => {
-    if (!stats[r.driver_id]) {
-      const d = drivers.find(x => x.id === r.driver_id);
-      if (d) stats[d.id] = {driver:d, total:0, starts:0, wins:0, top5:0, top10:0};
-    }
-    if (stats[r.driver_id]) {
-      const s = stats[r.driver_id];
-      s.total += (r.points || 0);
-      s.starts++;
-      if (r.position === 1) s.wins++;
-      if (r.position <= 5) s.top5++;
-      if (r.position <= 10) s.top10++;
-    }
-  });
-
-  const sorted = Object.values(stats)
-    .filter(p => season === 2025 ? p.total > 0 : true)
-    .sort((a,b) => b.total - a.total || b.wins - a.wins);
+  const sorted = seasonStandings(drivers, results, races, season);
 
   const tb = document.getElementById('pts-body');
   if (!sorted.length) {
@@ -1308,6 +1303,7 @@ async function loadPoints() {
   }).join('');
   } catch {
     document.getElementById('pts-round-label').textContent = '';
+    document.getElementById('pts-drop-rule').textContent = '';
     showDataUnavailable('pts-body', 'Standings', 9);
   }
 }
@@ -1773,21 +1769,17 @@ async function showDriverProfile(id) {
   const totalPts = allResults.reduce((s,r)=>s+(r.points||0),0);
 
   // Current season (2026) stats
-  const s26 = allResults.filter(r => r.races?.race_date?.startsWith('2026'));
-  const s26starts = s26.length;
-  const s26wins = s26.filter(r=>r.position===1).length;
-  const s26pts = s26.reduce((s,r)=>s+(r.points||0),0);
-
-  // All drivers points for standings position
+  // Share the championship calculation with the standings and home dashboard.
   const allDrivers = await get('public_drivers','select=*');
   const allRes2 = await get('results','select=*&season=eq.2026');
-  const ptsMap = {};
-  allDrivers.forEach(d=>{ ptsMap[d.id]=0; });
-  allRes2.forEach(r=>{ if(ptsMap[r.driver_id]!==undefined) ptsMap[r.driver_id]+=(r.points||0); });
-  const sortedPts = Object.values(ptsMap).sort((a,b)=>b-a);
-  const myPts = ptsMap[dr.id]||s26pts;
-  const standingPos = sortedPts.indexOf(myPts)+1 || '—';
-  const leader = sortedPts[0]||0;
+  const standings = seasonStandings(allDrivers, allRes2, allRaces, 2026);
+  const mine = standings.find(s => s.driver.id === dr.id);
+  const s26starts = mine.starts;
+  const s26wins = mine.wins;
+  const s26pts = mine.total;
+  const myPts = mine.total;
+  const standingPos = standings.indexOf(mine) + 1;
+  const leader = standings[0]?.total || 0;
   const deficit = myPts < leader ? leader - myPts : 0;
 
   // Top 5 finishes for display
@@ -1854,7 +1846,7 @@ async function showDriverProfile(id) {
     <div class="prof-stat-grid">
       ${stat(s26starts,'Starts')}
       ${stat(s26wins,'Wins')}
-      ${stat(s26pts,'Points')}
+      ${stat(s26pts,'Points (after drop)')}
       ${stat(standingPos==='—'?'—':'P'+standingPos,'Standing')}
       ${stat(deficit?'-'+deficit:'—','Pts Back')}
     </div>
