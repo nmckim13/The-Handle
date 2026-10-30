@@ -50,6 +50,20 @@
   .card { background: var(--panel); border-radius: 16px; border: 1px solid var(--line); padding: 20px 22px; margin-bottom: 16px; box-shadow: none; }
   .card-title { font-family: 'Archivo', sans-serif; font-size: 16px; font-weight: 900; color: var(--white); margin-bottom: 16px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
 
+  /* PUBLIC SURVEY SUMMARY */
+  .survey-summary p { color: var(--text2); font-size: 13px; line-height: 1.6; margin-bottom: 14px; }
+  .survey-summary h1 { font-size: 24px; margin-bottom: 10px; }
+  .survey-summary h2 { font-size: 16px; line-height: 1.5; }
+  .survey-summary-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .survey-summary .btn { min-height: 44px; }
+  .survey-summary button:disabled { opacity: .55; cursor: wait; }
+  .survey-summary :focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+  .survey-answer { margin-top: 16px; }
+  .survey-answer-label { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; line-height: 1.5; }
+  .survey-answer-label span:last-child { white-space: nowrap; color: var(--yellow); }
+  .survey-bar { height: 6px; background: var(--bg3); border-radius: 3px; margin-top: 7px; overflow: hidden; }
+  .survey-bar span { display: block; height: 100%; background: var(--red); }
+
   /* FORMS */
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .form-grid.full { grid-template-columns: 1fr; }
@@ -381,6 +395,7 @@
       <option value="videos">Videos</option>
       <option value="profiles">Driver Profiles</option>
       <option value="announcements">Announcements</option>
+      <option value="survey">Survey Results</option>
     </select>
   </label>
   <div class="admin-nav-inner">
@@ -393,6 +408,7 @@
     <button onclick="aShow('videos',this)">Videos</button>
     <button onclick="aShow('profiles',this)">Driver Profiles</button>
     <button onclick="aShow('announcements',this)">Announcements</button>
+    <button onclick="aShow('survey',this)">Survey Results</button>
   </div>
 </nav>
 
@@ -407,6 +423,17 @@
     </div>
     <div id="overview-root"><p style="color:var(--text2);font-size:13px">Loading…</p></div>
   </div>
+
+  <!-- SURVEY RESULTS -->
+  <section class="admin-page survey-summary" id="ap-survey" aria-labelledby="survey-results-title">
+    <h1 id="survey-results-title">Survey Results</h1>
+    <p>Public totals from the six-question racer survey. Individual submissions are private. These are voluntary responses, not verified unique racers or a binding vote.</p>
+    <div class="survey-summary-header">
+      <span id="survey-results-status" role="status" aria-live="polite">Open this section to load results.</span>
+      <button class="btn btn-outline" id="survey-results-refresh" onclick="loadSurveyResults()">Refresh results</button>
+    </div>
+    <div id="survey-results-root" aria-busy="false"></div>
+  </section>
 
   <!-- RACE NIGHT -->
   <div class="admin-page" id="ap-racenight">
@@ -722,6 +749,7 @@
 <script src="/admin-auth.js"></script>
 <script src="/race-night-client.js"></script>
 <script src="/driver-graphics.js"></script>
+<script src="/racer-survey.js"></script>
 <script>
   const SUPABASE_URL = 'https://lnsvacnbgmklpkgzbodb.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxuc3ZhY25iZ21rbHBrZ3pib2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjIyOTMsImV4cCI6MjA5MzU5ODI5M30.GOCPHaUwg-L6rk8mAuRGjC3ggvJQZ98N6IqnsNJxalY';
@@ -773,6 +801,38 @@
     document.getElementById('admin-section').value = id;
     if (id === 'overview') loadOverview();
     if (id === 'announcements') loadAnnouncements();
+    if (id === 'survey') loadSurveyResults();
+  }
+
+  let surveyResultsLoading = false;
+  async function loadSurveyResults() {
+    if (surveyResultsLoading) return;
+    surveyResultsLoading = true;
+    const root = document.getElementById('survey-results-root');
+    const status = document.getElementById('survey-results-status');
+    const refresh = document.getElementById('survey-results-refresh');
+    refresh.disabled = true;
+    root.setAttribute('aria-busy', 'true');
+    status.textContent = 'Loading survey results…';
+    root.innerHTML = '<p>Fetching the latest totals…</p>';
+    try {
+      const summary = await db.get('rpc/racer_survey_summary');
+      const total = summary.total_responses;
+      root.innerHTML = `<div class="card"><h2>${total} ${total === 1 ? 'response' : 'responses'}</h2><p>${total ? 'Percentages use all responses. Rounding may make totals differ from 100%.' : 'No responses yet. Results will appear here after people complete the survey.'}</p><a class="back-link" href="/#survey">Open the survey →</a></div>` +
+        window.RacerSurvey.questions.map(q => `<section class="card"><h2 class="card-title">${escapeHtml(q.title)}</h2>${q.options.map(([value, label]) => {
+          const count = summary.counts.find(c => c.question === q.id && c.answer === value)?.response_count || 0;
+          const percent = total ? Math.round(count / total * 1000) / 10 : 0;
+          return `<div class="survey-answer"><div class="survey-answer-label"><span>${escapeHtml(label)}</span><span>${count} · ${percent}%</span></div><div class="survey-bar" aria-hidden="true"><span style="width:${percent}%"></span></div></div>`;
+        }).join('')}</section>`).join('');
+      status.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    } catch {
+      root.innerHTML = '<div class="error-box">Couldn’t load survey results. Try Refresh results. If this is a new installation, the survey reporting migration must be applied first.</div>';
+      status.textContent = 'Results unavailable — no totals shown';
+    } finally {
+      surveyResultsLoading = false;
+      refresh.disabled = false;
+      root.setAttribute('aria-busy', 'false');
+    }
   }
 
   // POPULATE SELECTS
@@ -3070,6 +3130,7 @@
         <button class="btn btn-outline" onclick="goTab('results')">Post Results</button>
         <button class="btn btn-outline" onclick="goTab('races')">Schedule</button>
         <button class="btn btn-outline" onclick="goTab('announcements')">Announcements</button>
+        <button class="btn btn-outline" onclick="goTab('survey')">Survey Results</button>
       </div>
     </div>`;
 
