@@ -94,6 +94,7 @@ test('home switches to the adjusted season podium only after finale publication,
   await poll.callback();
   assert.equal(app.el('home-podium').hidden, false);
   assert.equal(app.el('home-race-panels').hidden, true);
+  assert.ok(!app.el('page-home').classList.contains('halloween-round'));
   const podium = app.el('home-podium').innerHTML;
   assert.match(podium, /Season complete/);
   assert.match(podium, /Season champion[\s\S]*?Missed[\s\S]*?139/);
@@ -157,18 +158,27 @@ test('Halloween styling follows the next race and clears when the event changes 
   app.state.missingViews = false;
   await app.run('loadHome()');
   assert.ok(app.el('home-nextrace').classList.contains('hp-halloween'));
+  assert.ok(app.el('page-home').classList.contains('halloween-round'));
   assert.match(app.el('home-nextrace').innerHTML, /Halloween Race/);
   assert.match(app.el('home-nextrace').innerHTML, /goToSignup\('next'\)/);
   assert.match(app.el('home-nextrace').innerHTML, /<b>3<\/b> drivers/);
   races[0].name = 'Season Opener';
   await app.run('loadHome()');
   assert.ok(!app.el('home-nextrace').classList.contains('hp-halloween'));
+  assert.ok(!app.el('page-home').classList.contains('halloween-round'));
   races[0].name = 'HALLOWEEN FINALE';
   await app.run('loadHome()');
   assert.ok(app.el('home-nextrace').classList.contains('hp-halloween'));
+  assert.ok(app.el('page-home').classList.contains('halloween-round'));
+  races[0].status = 'past';
+  await app.run('loadHome()');
+  assert.ok(!app.el('page-home').classList.contains('halloween-round'));
+  races[0].status = 'upcoming';
+  await app.run('loadHome()');
   app.state.raceFailure = true;
   await app.run('loadHome()');
   assert.ok(!app.el('home-nextrace').classList.contains('hp-halloween'));
+  assert.ok(!app.el('page-home').classList.contains('halloween-round'));
   assert.match(app.el('home-nextrace').innerHTML, /Schedule temporarily unavailable/);
 });
 

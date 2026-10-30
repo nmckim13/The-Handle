@@ -161,6 +161,20 @@
   .hp-halloween .hp-signup-btn:hover { background: #ffb254; }
   .hp-halloween .hp-signup-btn:focus-visible { outline: 3px solid #d5b4f1; outline-offset: 3px; }
 
+  .halloween-decor { display: none; pointer-events: none; user-select: none; }
+  .halloween-round .hero { border-color: #754491; box-shadow: 0 0 38px #782fb329, 0 2px 8px #0006; }
+  .halloween-round .halloween-decor { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 22px; border-bottom: 1px solid #61327e; background: radial-gradient(ellipse at center bottom, #51236580, transparent 75%), #110e17; }
+  .halloween-pumpkin { width: 48px; height: 48px; flex-shrink: 0; filter: drop-shadow(0 0 8px #ff931f44); }
+  .halloween-pumpkin:last-child { transform: scaleX(-1); }
+  .halloween-banner-copy { min-width: 0; text-align: center; color: #ffad4e; font-size: 10px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+  .halloween-bats { display: block; width: 148px; max-width: 100%; height: 25px; margin: 0 auto 5px; color: #bb7ce3; }
+  .halloween-round .hp-left { border-top-color: #a065cc; background: radial-gradient(ellipse at top left, #2b193a, transparent 85%), #141017; }
+  .halloween-round .hp-left .hp-lbl, .halloween-round .stat-n, .halloween-round .sect-lbl, .halloween-round .nsc-tbl th { color: #ff931f; }
+  .halloween-round .hp-pts-badge, .halloween-round .leader-badge { background: #4c2564; border-color: #81519e; color: #f1dfff; }
+  .halloween-round .leader-card { border-color: #754491; background: linear-gradient(110deg, #24152f, #141414); }
+  .halloween-round .stat-row { position: relative; padding-bottom: 6px; background: #1c1126; }
+  .halloween-round .stat-row::after { content: ''; position: absolute; inset: auto 0 0; height: 6px; pointer-events: none; background: repeating-conic-gradient(#ff931f 0% 25%, #6a3587 0% 50%) 0 0 / 12px 12px; }
+
   /* SEASON PODIUM */
   .season-podium { position: relative; overflow: hidden; padding: 30px 28px 24px; border-top: 4px solid #e9c45b; text-align: center; background: radial-gradient(ellipse at 50% 45%, #4b391c55, transparent 65%), linear-gradient(120deg, #b3903222, transparent 28%, transparent 72%, #b3903222), #100f0c; }
   .season-podium[hidden], .hero-panels[hidden] { display: none; }
@@ -531,6 +545,14 @@
   <!-- HOME -->
   <div class="page active" id="page-home">
     <div class="hero">
+      <div class="halloween-decor" aria-hidden="true">
+        <svg class="halloween-pumpkin" viewBox="0 0 64 64" fill="none"><path d="M32 15Q27 5 39 4" stroke="#9e7bb4" stroke-width="4" stroke-linecap="round"/><path d="M32 17C10 7 0 30 9 48Q16 62 32 56Q49 62 56 48C66 28 53 7 32 17Z" fill="#291426" stroke="#ff931f" stroke-width="2"/><path d="M32 18Q20 36 32 56M32 18Q44 36 32 56" stroke="#ff931f" stroke-opacity=".4"/><path d="M15 34L24 25L26 37ZM49 34L40 25L38 37ZM28 40L32 34L36 40ZM16 42L24 46L28 43L32 48L37 43L41 46L48 42Q43 56 32 53Q21 56 16 42Z" fill="#ffad4e"/></svg>
+        <div class="halloween-banner-copy">
+          <svg class="halloween-bats" viewBox="0 0 180 32" fill="currentColor"><path d="M0 8Q11 13 17 5L20 10L23 5Q30 13 40 8L34 22Q28 17 25 23L20 29L15 23Q12 17 6 22Z"/><path d="M61 3Q77 11 85 0L89 7L93 0Q102 11 118 3L110 23Q101 16 96 25L89 32L82 25Q77 16 69 23Z"/><path d="M140 8Q151 13 157 5L160 10L163 5Q170 13 180 8L174 22Q168 17 165 23L160 29L155 23Q152 17 146 22Z"/></svg>
+          Halloween at The Handle
+        </div>
+        <svg class="halloween-pumpkin" viewBox="0 0 64 64" fill="none"><path d="M32 15Q27 5 39 4" stroke="#9e7bb4" stroke-width="4" stroke-linecap="round"/><path d="M32 17C10 7 0 30 9 48Q16 62 32 56Q49 62 56 48C66 28 53 7 32 17Z" fill="#291426" stroke="#ff931f" stroke-width="2"/><path d="M32 18Q20 36 32 56M32 18Q44 36 32 56" stroke="#ff931f" stroke-opacity=".4"/><path d="M15 34L24 25L26 37ZM49 34L40 25L38 37ZM28 40L32 34L36 40ZM16 42L24 46L28 43L32 48L37 43L41 46L48 42Q43 56 32 53Q21 56 16 42Z" fill="#ffad4e"/></svg>
+      </div>
       <section class="season-podium" id="home-podium" aria-label="2026 championship podium" hidden></section>
       <div class="hero-panels" id="home-race-panels">
         <div class="hero-panel hp-left" id="home-winner"><div class="loading">Loading</div></div>
@@ -1238,7 +1260,9 @@ async function loadHome() {
   // RIGHT PANEL — next race with countdown
   const next = races?.find(r=>r.status==='upcoming' && r.season===2026);
   const nextEl = document.getElementById('home-nextrace');
-  nextEl.classList.toggle('hp-halloween', /halloween/i.test(next?.name || ''));
+  const halloween = /halloween/i.test(next?.name || '');
+  nextEl.classList.toggle('hp-halloween', halloween);
+  document.getElementById('page-home').classList.toggle('halloween-round', halloween);
   if (!races) {
     showDataUnavailable('home-nextrace', 'Schedule');
   } else if (next) {
