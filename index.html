@@ -235,8 +235,10 @@
   .driver-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 10px; margin-bottom: 18px; }
   .driver-card { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: var(--panel); box-shadow: none; transition: all 0.1s; cursor: pointer; }
   .driver-card:hover { background: var(--panel-2); border-color: var(--red); }
-  .d-num { font-family: 'Archivo', sans-serif; font-size: 30px; font-weight: 900; line-height: 1; min-width: 52px; text-align: center; background: var(--panel-2); color: var(--white); border-radius: 10px; padding: 4px 8px; }
-  .d-name { font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 900; text-transform: uppercase; color: var(--white); }
+  .d-num { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 100px; height: 64px; }
+  .d-num .dg-num-img { width: 100% !important; height: 100% !important; object-fit: contain; }
+  .d-num .dg-num-txt { font-size: 40px !important; }
+  .d-name { font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 900; text-transform: uppercase; color: var(--white); overflow-wrap: anywhere; }
   .d-meta { font-size: 12px; color: var(--muted); margin-top: 3px; font-weight: 700; }
   .d-badge { display: inline-block; margin-top: 5px; font-family: 'Archivo', sans-serif; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; border: 1px solid var(--line); color: var(--muted); padding: 2px 7px; border-radius: 6px; }
   .d-badge.hot { background: var(--red); border-color: var(--red); color: var(--white); }
@@ -334,6 +336,7 @@
     .header-logo{height:40px}
     .hero-top{padding:18px 16px 0}
     .driver-grid{grid-template-columns:1fr 1fr}
+    .driver-card{flex-direction:column;justify-content:flex-start;gap:10px;padding:16px 10px;text-align:center;min-height:132px}
     .next-race{flex-direction:column;align-items:flex-start;gap:8px}
     .season-tag{display:none}
     .pts-grid{grid-template-columns:repeat(2,1fr)}
@@ -1355,11 +1358,11 @@ async function loadDrivers() {
   });
   const g = document.getElementById('driver-grid');
   if(!d.length){g.innerHTML='<div class="empty">No drivers yet</div>';return;}
-  g.innerHTML=d.map((dr,i)=>{
+  g.innerHTML=d.map(dr=>{
     const isMailbox = dr.name==='Newt' || dr.name==='Bubba Hayes';
     const numEl = isMailbox
       ? `<div style="display:inline-flex;gap:3px;align-items:center;justify-content:center;flex-shrink:0;">
-           ${dr.number.toString().split('').map(digit => `
+           ${String(dr.number ?? '?').split('').map(digit => `
              <div style="
                background:linear-gradient(160deg,#F5C800 0%,#D4A800 50%,#B8900A 100%);
                transform:skewX(-10deg);
@@ -1374,16 +1377,16 @@ async function loadDrivers() {
                  display:inline-block;
                  transform:skewX(10deg);
                  font-family:'Archivo',sans-serif;
-                 font-size:20px;
+                 font-size:30px;
                  font-weight:900;
                  color:#111;
                  line-height:1;
                ">${escapeHtml(digit)}</span>
              </div>`).join('')}
          </div>`
-      : getDriverNumEl(dr.name.trim(), dr.number, 48);
+      : getDriverNumEl(dr.name.trim(), dr.number, 64);
     const nameEl = `<div class="d-name">${escapeHtml(dr.name)}</div>`;
-    return `<div class="driver-card" onclick="showDriverProfile('${dr.id}')">${numEl}<div>${nameEl}</div></div>`;
+    return `<div class="driver-card" onclick="showDriverProfile('${dr.id}')"><div class="d-num">${numEl}</div><div>${nameEl}</div></div>`;
   }).join('');
 }
 

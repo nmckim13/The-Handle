@@ -207,6 +207,29 @@ test('missing safe views leave available races visible and replace rejected publ
   assert.doesNotMatch(app.el('rec-body').innerHTML, /temporarily unavailable/);
 });
 
+test('roster preserves picture graphics and fallback numbers in shared number slots', async () => {
+  const drivers = [
+    { id: 'kelton', name: 'Kelton', number: '73' },
+    { id: 'newt', name: 'Newt', number: '31' },
+    { id: 'bubba', name: 'Bubba Hayes', number: '33' },
+    { id: 'ronnie', name: 'Ronnie', number: '09' },
+    { id: 'tdirt', name: 'T Dirt', number: '418' },
+    { id: 'zero', name: 'New Driver', number: 0 }
+  ];
+  const app = dashboard({ drivers });
+  app.state.missingViews = false;
+  await app.run('loadDrivers()');
+  const html = app.el('driver-grid').innerHTML;
+  assert.equal([...html.matchAll(/class="d-num"/g)].length, drivers.length);
+  for (const image of ['kelton73.png', 'ronnie09.png', 'tdirt418.png']) assert.ok(html.includes(`src="/${image}"`));
+  assert.match(html, /alt="09"/);
+  assert.match(html, /class="dg-num-txt"[^>]*>0<\/span>/);
+  for (const driver of drivers) {
+    assert.ok(html.includes(`showDriverProfile('${driver.id}')`));
+    assert.ok(html.includes(driver.name));
+  }
+});
+
 test('race failures do not become empty schedules or zero counts, and count-only failure keeps winner and standings', async () => {
   const app = dashboard();
   await app.run('Promise.all([loadHome(), loadDrivers(), loadPoints(), loadSchedule(), loadRecords(), loadVideos(), loadLatestVideo()])');
