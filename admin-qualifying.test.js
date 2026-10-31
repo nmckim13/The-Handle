@@ -69,3 +69,32 @@ test('qualifying keeps the chosen display and unsaved lap when refreshing the sa
   assert.doesNotMatch(differentRace, /value="12\."/);
   assert.equal(page.writes.length, 0);
 });
+
+test('name-based time editing works without qualifying fields, rejects invalid edits, and cannot save into a different race', () => {
+  const page = qualifyingPage();
+  page.run(`
+    const editor = { dataset: {}, open: false, showModal() { this.open = true; }, close() { this.open = false; } };
+    const timeField = { value: '', setAttribute() {}, focus() {}, select() {} };
+    const message = { textContent: '' };
+    const driver = { querySelector: () => ({ textContent: '#18 Alex' }) };
+    document.getElementById = id => ({
+      'rn-qual-edit': editor, 'rn-qual-edit-time': timeField,
+      'rn-qual-edit-error': message, 'rn-qual-edit-driver': { textContent: '' }
+    })[id] || null;
+    rnSetQual('alex', '13.456');
+    rnEditQual('alex', driver);
+  `);
+  assert.equal(Number(page.run('timeField.value')), 13.456);
+  page.run("timeField.value = '12seconds'; rnSaveQualEdit()");
+  assert.deepEqual(JSON.parse(page.storage.get('rn_qual_friday')), { alex: 13.456 });
+  assert.equal(page.run('editor.open'), true);
+  assert.match(page.run('message.textContent'), /positive seconds/);
+  page.run("timeField.value = '11,876'; rnSaveQualEdit()");
+  assert.deepEqual(JSON.parse(page.storage.get('rn_qual_friday')), { alex: 11.876 });
+  assert.equal(page.run('editor.open'), false);
+  page.run("rnEditQual('alex', driver); timeField.value = '9.125'; RN.raceId = 'saturday'; rnSaveQualEdit()");
+  assert.equal(page.storage.has('rn_qual_saturday'), false);
+  assert.deepEqual(JSON.parse(page.storage.get('rn_qual_friday')), { alex: 11.876 });
+  page.run("RN.raceId = 'friday'; rnEditQual('alex', driver); timeField.value = ''; rnSaveQualEdit()");
+  assert.deepEqual(JSON.parse(page.storage.get('rn_qual_friday')), {});
+});

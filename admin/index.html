@@ -227,6 +227,35 @@
   .rn-tap-btn:disabled { opacity: .7; }
   .rn-tap-btn.saved { border-color: var(--green); }
   @media (hover: hover) { .rn-tap-btn:hover:not(:disabled) { background: var(--red); border-color: var(--red); } }
+  .rn-heat-driver { display: grid; grid-template-columns: 55px minmax(0, 1fr) 40px auto; gap: 8px; align-items: center; padding: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+  .rn-heat-driver.saved { border-color: var(--green); }
+  .rn-heat-driver .dg-num-img { max-width: 55px; }
+  .rn-heat-start { font-size: 11px; color: var(--text2); text-align: center; }
+  .rn-qual-name { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: 44px; width: 100%; border: 0; border-radius: 6px; background: transparent; padding: 0; color: inherit; font: inherit; font-weight: 900; text-transform: uppercase; text-align: left; cursor: pointer; }
+  .rn-qual-name > span { overflow-wrap: anywhere; }
+  .rn-qual-name small { flex-shrink: 0; color: var(--yellow); font-size: 11px; font-weight: 800; }
+  .rn-qual-name small:empty { display: none; }
+  .rn-qual-name:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+  .rn-qual-editor { margin: auto; width: min(420px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--white); }
+  .rn-qual-editor::backdrop { background: rgba(0,0,0,.8); }
+  .rn-qual-editor h2 { font-size: 20px; }
+  .rn-qual-editor p { margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text2); }
+  .rn-qual-editor label { display: block; font-size: 13px; font-weight: 800; margin: 16px 0 8px; }
+  .rn-qual-editor input { width: 100%; min-height: 48px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--white); font: inherit; font-size: 16px; }
+  .rn-qual-editor input[aria-invalid="true"] { border-color: var(--yellow); }
+  .rn-qual-editor #rn-qual-edit-error { color: var(--yellow); }
+  .rn-qual-editor-actions { display: flex; gap: 12px; margin-top: 20px; }
+  .rn-qual-editor-actions .btn { flex: 1; min-height: 44px; }
+  @media (max-width: 900px) {
+    .rn-heat .rn-tap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rn-heat-driver { grid-template-columns: 34px minmax(0, 1fr); padding: 6px; gap: 6px; }
+    .rn-heat-driver .dg-num-img { max-width: 34px; }
+    .rn-heat-driver .rn-qual-name { font-size: 12px; flex-wrap: wrap; gap: 2px; }
+    .rn-heat-driver .btn { min-width: 0; padding: 8px 6px; }
+  }
+  @media (min-width: 601px) and (max-width: 900px) {
+    .rn-heat .rn-tap-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
   .rn-finish-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
   .rn-finish-row > strong { color: var(--yellow); }
   .rn-finish-row > span { overflow-wrap: anywhere; line-height: 1.5; }
@@ -365,8 +394,9 @@
     .rn-qualifying:has(#rn-qual-compact:checked) .rn-qgrid { gap: 4px; }
     .rn-qualifying:has(#rn-qual-compact:checked) .rn-qual-groups > .rn-qgrid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .rn-qualifying:has(#rn-qual-compact:checked) .rn-qhint { grid-column: 1 / -1; }
-    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qrow { grid-template-columns: minmax(0, 1fr); padding: 5px 6px; gap: 0; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qrow { grid-template-columns: minmax(0, 1fr); padding: 3px 6px; gap: 0; }
     .rn-qualifying:has(#rn-qual-compact:checked) .rn-qrow .item-name { color: var(--white) !important; font-size: 12px !important; line-height: 1.35; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qual-name { min-height: 24px; }
     .rn-qualifying:has(#rn-qual-compact:checked) .rn-qrow > div,
     .rn-qualifying:has(#rn-qual-compact:checked) .rn-qual-entry-only { display: none; }
   }
@@ -766,6 +796,18 @@
 
 </div>
 <div class="toast" id="toast"></div>
+
+<dialog class="rn-qual-editor" id="rn-qual-edit" aria-labelledby="rn-qual-edit-title" aria-describedby="rn-qual-edit-driver">
+  <form onsubmit="event.preventDefault(); rnSaveQualEdit()">
+    <h2 id="rn-qual-edit-title">Qualifying time</h2>
+    <p id="rn-qual-edit-driver"></p>
+    <label for="rn-qual-edit-time">Best lap · seconds</label>
+    <input id="rn-qual-edit-time" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" placeholder="12.345" aria-describedby="rn-qual-edit-hint rn-qual-edit-error">
+    <p id="rn-qual-edit-hint">Up to 3 decimals. Leave blank to clear the time. Saved on this device; existing heat lineups do not change.</p>
+    <p id="rn-qual-edit-error" role="alert"></p>
+    <div class="rn-qual-editor-actions"><button type="button" class="btn btn-outline" onclick="document.getElementById('rn-qual-edit').close()">Cancel</button><button type="submit" class="btn btn-primary">Save time</button></div>
+  </form>
+</dialog>
 
 <script src="/admin-auth.js"></script>
 <script src="/race-night-client.js"></script>
@@ -2043,11 +2085,47 @@
       if (error) error.textContent = 'Not saved: device storage is unavailable. Keep this page open and try again.';
       toast('Lap not saved. Device storage is unavailable; keep this page open and try again.', true);
       rnRenderQualPreview();
-      return;
+      return false;
     }
+    document.querySelectorAll('[data-qual-entry]').forEach(button => {
+      if (button.dataset.qualEntry === entryId) button.querySelector('[data-qual-value]').textContent = n == null ? '' : n.toFixed(3) + 's';
+    });
     rnRenderQualPreview();
     rnFilterQual();
     rnSyncQualTimesLiveDebounced(q, RN.raceId);
+    return true;
+  }
+  function rnQualName(entry, time) {
+    return `<button type="button" class="rn-qual-name item-name" data-qual-entry="${entry.id}" aria-label="Edit qualifying time for #${escapeHtml(entry.car_number)} ${escapeHtml(entry.name)}" aria-haspopup="dialog" aria-controls="rn-qual-edit" onclick="rnEditQual('${entry.id}', this)"><span data-qual-name>#${escapeHtml(entry.car_number)} ${escapeHtml(entry.name)}</span><small data-qual-value>${time != null ? Number(time).toFixed(3) + 's' : ''}</small></button>`;
+  }
+  function rnEditQual(entryId, button) {
+    const dialog = document.getElementById('rn-qual-edit');
+    dialog.dataset.raceId = RN.raceId;
+    dialog.dataset.entryId = entryId;
+    document.getElementById('rn-qual-edit-driver').textContent = button.querySelector('[data-qual-name]').textContent;
+    const input = document.getElementById('rn-qual-edit-time');
+    input.value = document.getElementById('rn-qual-time-' + entryId)?.value ?? rnLoadQual()[entryId] ?? '';
+    input.setAttribute('aria-invalid', 'false');
+    document.getElementById('rn-qual-edit-error').textContent = '';
+    dialog.showModal();
+    input.focus();
+    input.select();
+  }
+  function rnSaveQualEdit() {
+    const dialog = document.getElementById('rn-qual-edit');
+    const input = document.getElementById('rn-qual-edit-time');
+    const error = document.getElementById('rn-qual-edit-error');
+    if (dialog.dataset.raceId !== RN.raceId) { error.textContent = 'The selected race changed. Cancel and reopen the driver in the current race.'; return; }
+    if (input.value.trim() && rnQualSeconds(input.value) == null) {
+      input.setAttribute('aria-invalid', 'true');
+      error.textContent = 'Use positive seconds, up to 3 decimals. Leave blank for no time.';
+      input.focus();
+      return;
+    }
+    const lapInput = document.getElementById('rn-qual-time-' + dialog.dataset.entryId);
+    if (lapInput) lapInput.value = input.value;
+    if (!rnSetQual(dialog.dataset.entryId, input.value)) { error.textContent = 'Time was not saved. Device storage is unavailable; keep this page open and try again.'; return; }
+    dialog.close();
   }
   function rnFilterQual() {
     if (!document.getElementById('rn-qualifying')) return;
@@ -2647,18 +2725,24 @@
       </div>
     ` : '';
 
-    const tapHtml = !completed ? `
-      <h3>Record finishes · ${lineup.filter(l => finishedIds.has(l.entry_id)).length} of ${lineup.length} saved</h3>
-      <p>${lineup.every(l => finishedIds.has(l.entry_id)) ? 'All lineup drivers recorded.' : `Next finish: P${nextPos}. Tap each kart as it finishes.`} Buttons stay in starting-grid order.</p>
-      <div class="rn-tap-grid" role="group" aria-label="${title} finish buttons">
+    const q = rnLoadQual();
+    const tapHtml = !completed || session.session_type === 'heat' ? `
+      <h3>${completed ? 'Heat drivers' : 'Record finishes'} · ${lineup.filter(l => finishedIds.has(l.entry_id)).length} of ${lineup.length} saved</h3>
+      <p>${completed ? 'Heat complete.' : lineup.every(l => finishedIds.has(l.entry_id)) ? 'All lineup drivers recorded.' : `Next finish: P${nextPos}. ${session.session_type === 'heat' ? 'Use Finish to record race order.' : 'Tap each kart as it finishes.'}`} ${session.session_type === 'heat' ? 'Tap a name to edit its qualifying time. Starting positions stay unchanged.' : 'Buttons stay in starting-grid order.'}</p>
+      <div class="rn-tap-grid" role="group" aria-label="${title} ${session.session_type === 'heat' ? 'drivers and finishes' : 'finish buttons'}">
         ${lineup.map(l => {
           const result = finished.find(r => r.entry_id === l.entry_id);
+          if (session.session_type === 'heat') return `<div class="rn-heat-driver${result ? ' saved' : ''}">
+            ${rnNumG(l.entry, 24)}${rnQualName({ ...l.entry, id: l.entry_id }, q[l.entry_id])}
+            <span class="rn-heat-start">Start P${l.starting_position}</span>
+            <button class="btn btn-outline" data-session-action="finish-${l.entry_id}" data-unavailable="${!!result || completed}" ${result || completed ? 'disabled' : ''} aria-label="${result ? `P${result.finishing_position} saved for` : 'Record finish for'} ${escapeHtml(l.entry?.name || 'driver')}" onclick="rnTapFinish('${session.id}','${l.entry_id}')">${result ? `✓ P${result.finishing_position}` : 'Finish'}</button>
+          </div>`;
           return `<button class="rn-tap-btn${result ? ' saved' : ''}" data-session-action="finish-${l.entry_id}" data-unavailable="${!!result}" ${result ? 'disabled' : ''} onclick="rnTapFinish('${session.id}','${l.entry_id}')"><span>${l.starting_position}<small>start</small></span>${rnNumG(l.entry, 24)}<span>${escapeHtml(l.entry?.name || '—')}<small>${result ? `✓ P${result.finishing_position} saved` : 'Tap to record finish'}</small></span></button>`;
         }).join('')}
       </div>
     ` : '';
 
-    return `<section class="card rn-session" id="rn-session-${session.id}" aria-labelledby="rn-title-${session.id}">
+    return `<section class="card rn-session${session.session_type === 'heat' ? ' rn-heat' : ''}" id="rn-session-${session.id}" aria-labelledby="rn-title-${session.id}">
       <div class="rn-session-head">
         <div><h2 id="rn-title-${session.id}">${title}</h2>${liveTag}<p>${lineup.length} cars · ${session.laps_scheduled || '?'} scheduled laps</p></div>
         <button class="btn btn-outline" data-session-action="edit" aria-label="Refresh ${title} controls" onclick="rnRenderAll()">Refresh</button>
@@ -2793,8 +2877,8 @@
       const value = String(draft('rn-qual-time-' + e.id, q[e.id] ?? ''));
       const invalid = (value.trim() && rnQualSeconds(value) == null) || (sameRace && document.getElementById('rn-qual-time-' + e.id)?.getAttribute('aria-invalid') === 'true');
       const error = sameRace ? document.getElementById('rn-qual-error-' + e.id)?.textContent : '';
-      return `<div class="rn-qrow">
-        <span class="item-name" style="color:${safeColor(e.color)};font-size:13px">#${escapeHtml(e.car_number)} ${escapeHtml(e.name)}</span>
+      return `<div class="rn-qrow" style="color:${safeColor(e.color)};font-size:13px">
+        ${rnQualName(e, rnQualSeconds(value))}
         <div><label for="rn-qual-time-${e.id}">Best lap · seconds</label>
         <input id="rn-qual-time-${e.id}" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" placeholder="12.345" value="${escapeHtml(value)}" aria-label="Best lap in seconds for #${escapeHtml(e.car_number)} ${escapeHtml(e.name)}" aria-describedby="rn-qual-error-${e.id}" aria-invalid="${Boolean(invalid)}" oninput="rnSetQual('${e.id}', this.value)" onkeydown="if(event.key === 'Enter'){event.preventDefault();rnNextQualInput(this.id)}">
         <span class="rn-qual-error" id="rn-qual-error-${e.id}">${escapeHtml(error || 'Use positive seconds, up to 3 decimals. Blank means no time.')}</span></div>
@@ -2836,7 +2920,7 @@
       <h3>2. Qualifying groups &amp; best laps</h3>
       <div class="rn-qual-display">
         <label for="rn-qual-compact"><input id="rn-qual-compact" type="checkbox"${compact ? ' checked' : ''}>Compact groups</label>
-        <p>Names first for screen mirroring. Uncheck to enter lap times.</p>
+        <p>Tap a name to edit its time. Uncheck to show all time fields.</p>
       </div>
       <p class="rn-qhint rn-qual-entry-only">Seconds, up to 3 decimals. Blank = no time. Press Next / Enter to move to the next driver.</p>
       <p class="rn-qual-progress" id="rn-qual-progress" role="status"></p>
