@@ -5,6 +5,8 @@ import os
 import subprocess
 import time
 import unittest
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import test_admin_security as security
 import test_public_driver_reads as reads
@@ -49,6 +51,32 @@ class PublicSignup(unittest.TestCase):
 
     def install(self):
         self.sql(REPAIR)
+
+    def test_track_day_signup_is_independent_of_database_timezone(self):
+        self.install()
+        before = self.sql("select row(prosrc,proacl,proowner)::text from pg_proc where oid='public.submit_signup(uuid,uuid,text,text,text,text)'::regprocedure")
+        fix = (security.MIGRATIONS / '021_signup_track_timezone.sql').read_text()
+        self.sql(fix)
+        self.sql(fix)  # Safe to reapply without changing the function or grants.
+        self.assertEqual(self.sql("select row(prosrc,proacl,proowner)::text from pg_proc where oid='public.submit_signup(uuid,uuid,text,text,text,text)'::regprocedure"), before)
+        track_day = datetime.now(ZoneInfo('America/Chicago')).date()
+        for timezone in ('UTC', 'Pacific/Kiritimati', 'Pacific/Honolulu'):
+            for offset in (-1, 0, 1):
+                with self.subTest(timezone=timezone, days_from_track_today=offset):
+                    day = track_day + timedelta(days=offset)
+                    self.sql(f"delete from entries; update races set status='upcoming',race_date='{day}' where id='{security.RACE}';")
+                    request = f"set timezone='{timezone}';" + security.signup()
+                    if offset < 0:
+                        self.sql(request, 'anon', error='22023')
+                        self.assertEqual(self.sql('select count(*) from entries'), '0')
+                    else:
+                        response = self.sql(request + 'show timezone;', 'anon').splitlines()
+                        self.assertEqual(response[-1], timezone, 'RPC must restore the caller timezone')
+                        self.assertEqual(self.sql(request, 'anon'), response[0])
+                        self.sql(f"set timezone='{timezone}';" + security.signup(ref='different'), 'anon', error='23505')
+                        self.assertEqual(self.sql('select count(*) from entries'), '1')
+        self.sql(f"delete from entries; update races set status='completed',race_date='{track_day}' where id='{security.RACE}';")
+        self.sql(security.signup(), 'anon', error='22023')
 
     def test_signup_contract_and_concurrent_retries(self):
         # Reuse the established public RPC contract, not another interpretation.
