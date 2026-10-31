@@ -252,9 +252,15 @@
     .rn-heat-driver .dg-num-img { max-width: 34px; }
     .rn-heat-driver .rn-qual-name { font-size: 12px; flex-wrap: wrap; gap: 2px; }
     .rn-heat-driver .btn { min-width: 0; padding: 8px 6px; }
+    .rn-feature .rn-tap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .rn-feature .rn-tap-btn { grid-template-columns: 24px minmax(0, 1fr); gap: 4px 6px; min-height: 76px; padding: 7px; font-size: 12px; }
+    .rn-feature .rn-tap-btn .dg-num-img { max-width: 34px; }
+    .rn-feature .rn-tap-btn > span:last-child { grid-column: 1 / -1; }
+    .rn-feature .rn-tap-btn small { font-size: 10px; margin-top: 2px; }
   }
   @media (min-width: 601px) and (max-width: 900px) {
     .rn-heat .rn-tap-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .rn-feature .rn-tap-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
   .rn-finish-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
   .rn-finish-row > strong { color: var(--yellow); }
@@ -2742,7 +2748,7 @@
       </div>
     ` : '';
 
-    return `<section class="card rn-session${session.session_type === 'heat' ? ' rn-heat' : ''}" id="rn-session-${session.id}" aria-labelledby="rn-title-${session.id}">
+    return `<section class="card rn-session${session.session_type === 'heat' ? ' rn-heat' : session.session_type === 'feature' ? ' rn-feature' : ''}" id="rn-session-${session.id}" aria-labelledby="rn-title-${session.id}">
       <div class="rn-session-head">
         <div><h2 id="rn-title-${session.id}">${title}</h2>${liveTag}<p>${lineup.length} cars · ${session.laps_scheduled || '?'} scheduled laps</p></div>
         <button class="btn btn-outline" data-session-action="edit" aria-label="Refresh ${title} controls" onclick="rnRenderAll()">Refresh</button>
