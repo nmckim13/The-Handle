@@ -347,11 +347,32 @@
   .rn-qualifying summary { cursor: pointer; font-weight: 800; padding: 10px 0; }
   .rn-qualifying .rn-qprev-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; }
   .rn-qualifying .btn:disabled { opacity: .6; cursor: not-allowed; }
+  .rn-qual-display { display: none; }
   @media (max-width: 600px) {
     .rn-qualifying { padding: 18px 14px; }
     .rn-qualifying .rn-qrow { grid-template-columns: minmax(0, 1fr); }
     .rn-qualifying .form-grid { grid-template-columns: minmax(0, 1fr); }
     .rn-qualifying .btn { width: 100%; white-space: normal; }
+  }
+  @media (max-width: 900px) {
+    .rn-qual-display { display: block; margin-bottom: 12px; }
+    .rn-qual-display label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; font-weight: 800; cursor: pointer; }
+    .rn-qual-display input { width: 22px; height: 22px; min-height: 0; accent-color: var(--yellow); }
+    .rn-qual-display p { font-size: 12px; color: var(--text2); }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qual-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 8px; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qgroup { margin-bottom: 0; min-width: 0; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qgroup-title { flex-wrap: wrap; gap: 4px 8px; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qgrid { gap: 4px; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qual-groups > .rn-qgrid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qhint { grid-column: 1 / -1; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qrow { grid-template-columns: minmax(0, 1fr); padding: 5px 6px; gap: 0; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qrow .item-name { color: var(--white) !important; font-size: 12px !important; line-height: 1.35; }
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qrow > div,
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qual-entry-only { display: none; }
+  }
+  @media (min-width: 601px) and (max-width: 900px) {
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qual-groups,
+    .rn-qualifying:has(#rn-qual-compact:checked) .rn-qual-groups > .rn-qgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
   #ap-profiles .profile-tools, #ap-profiles .profile-actions { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
   #ap-profiles { padding-bottom:16px; }
@@ -2767,6 +2788,7 @@
     const sameRace = document.getElementById('rn-qualifying')?.dataset.raceId === RN.raceId;
     const draft = (id, fallback) => sameRace ? document.getElementById(id)?.value ?? fallback : fallback;
     const groupFilter = draft('rn-qual-group-filter', 'all');
+    const compact = sameRace ? document.getElementById('rn-qual-compact')?.checked ?? true : true;
     const lapInput = e => {
       const value = String(draft('rn-qual-time-' + e.id, q[e.id] ?? ''));
       const invalid = (value.trim() && rnQualSeconds(value) == null) || (sameRace && document.getElementById('rn-qual-time-' + e.id)?.getAttribute('aria-invalid') === 'true');
@@ -2811,15 +2833,19 @@
         <div class="form-group"><label for="rn-qgroup-count">Groups (1–4)</label><select id="rn-qgroup-count" onchange="rnSetQGroupCount(this.value)">${[1,2,3,4].map(n => `<option value="${n}"${n === groupCount ? ' selected' : ''}>${n === 1 ? '1 — All drivers together' : n + ' groups'}</option>`).join('')}</select></div>
         <div class="form-group"><label>&nbsp;</label>${groupControls || '<span style="font-size:12px;color:var(--text2)">One group — all karts qualify together.</span>'}</div>
       </div>
-      <h3>2. Enter best laps</h3>
-      <p class="rn-qhint">Seconds, up to 3 decimals. Blank = no time. Press Next / Enter to move to the next driver.</p>
+      <h3>2. Qualifying groups &amp; best laps</h3>
+      <div class="rn-qual-display">
+        <label for="rn-qual-compact"><input id="rn-qual-compact" type="checkbox"${compact ? ' checked' : ''}>Compact groups</label>
+        <p>Names first for screen mirroring. Uncheck to enter lap times.</p>
+      </div>
+      <p class="rn-qhint rn-qual-entry-only">Seconds, up to 3 decimals. Blank = no time. Press Next / Enter to move to the next driver.</p>
       <p class="rn-qual-progress" id="rn-qual-progress" role="status"></p>
       <div class="rn-qual-tools">
         ${groupCount > 1 && Object.keys(g.byEntry).length ? `<div class="form-group"><label for="rn-qual-group-filter">Working group</label><select id="rn-qual-group-filter" onchange="rnFilterQual()">${[['all','All groups'], ...Array.from({ length: groupCount }, (_, i) => [String(i), 'Group ' + String.fromCharCode(65 + i)]), ['unassigned','Unassigned / late arrivals']].map(([v, label]) => `<option value="${v}"${v === groupFilter ? ' selected' : ''}>${label}</option>`).join('')}</select></div>` : ''}
-        <button id="rn-qual-next" class="btn btn-outline" onclick="rnNextQualInput()">Next untimed driver</button>
+        <button id="rn-qual-next" class="btn btn-outline rn-qual-entry-only" onclick="rnNextQualInput()">Next untimed driver</button>
       </div>
       <p id="rn-qual-empty" class="rn-qhint" hidden>No drivers in this group. Choose another working group or redraw to include late arrivals.</p>
-      ${inputsHtml}
+      <div class="rn-qual-groups">${inputsHtml}</div>
       <details${sameRace && document.getElementById('rn-qual-order')?.open ? ' open' : ''} id="rn-qual-order"><summary>Overall qualifying order</summary><div id="rn-qual-preview"></div></details>
       <h3>3. Seed the heats</h3>
       <p class="rn-qhint">All groups combine. Fastest drivers split across heats, on pole — no invert. Untimed drivers follow timed drivers.</p>

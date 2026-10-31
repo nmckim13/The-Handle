@@ -49,3 +49,23 @@ test('a delayed qualifying mirror stays with its original race after the operato
   assert.deepEqual(JSON.parse(page.storage.get('rn_qual_friday')), { alex: 12.345 });
   assert.equal(page.storage.has('rn_qual_saturday'), false);
 });
+
+test('qualifying keeps the chosen display and unsaved lap when refreshing the same race, not a different race', () => {
+  const page = qualifyingPage();
+  page.run(`
+    document.getElementById = id => ({
+      'rn-qualifying': { dataset: { raceId: 'friday' } },
+      'rn-qual-compact': { checked: false },
+      'rn-qual-time-alex': { value: '12.', getAttribute: () => 'true' }
+    })[id] || null;
+  `);
+  const render = () => page.run("rnQualifyingCard([{ id: 'alex', name: 'Alex', car_number: '18' }])");
+  const refreshed = render();
+  assert.match(refreshed, /id="rn-qual-compact" type="checkbox">/);
+  assert.match(refreshed, /value="12\."[^>]*aria-invalid="true"/);
+  page.run("RN.raceId = 'saturday'");
+  const differentRace = render();
+  assert.match(differentRace, /id="rn-qual-compact" type="checkbox" checked>/);
+  assert.doesNotMatch(differentRace, /value="12\."/);
+  assert.equal(page.writes.length, 0);
+});
